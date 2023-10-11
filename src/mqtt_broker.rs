@@ -30,14 +30,17 @@ pub async fn mqtt_broker(
     }
 }
 
+// Forward events from MQTT to NoStr
 async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
     let nostr_tx = ctx.nostr_tx.clone();
-    let m = SignedMessage {
-        raw: vec![],
-        hash: vec![],
-        nonce: 12312312312,
-        signature: vec![],
-    };
-    nostr_tx.send(m)?;
+    let msg = SignedMessage::decode(payload.as_ref())?;
+
+    // Don't redistribute self
+    if let Some(last_edge_addr) = &msg.last_edge_addr {
+        if last_edge_addr.as_slice() == &ctx.eth_addr_bytes {
+            return Ok(());
+        }
+    }
+    nostr_tx.send(msg)?;
     Ok(())
 }

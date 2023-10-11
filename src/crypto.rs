@@ -6,13 +6,17 @@ use k256::{
 };
 use sha3::{Digest, Keccak256};
 
-pub fn get_eth_address(key: &VerifyingKey) -> String {
+pub fn get_eth_address_bytes(key: &VerifyingKey) -> Bytes {
     let key = key.to_encoded_point(false);
     let key = key.as_bytes();
     let mut hasher = Keccak256::default();
     hasher.update(&key[1..]);
     let hash = hasher.finalize();
-    format!("0x{}", hex::encode(&hash[12..]))
+    Bytes::copy_from_slice(&hash[12..])
+}
+
+pub fn get_eth_address(key: &VerifyingKey) -> String {
+    format!("0x{}", hex::encode(get_eth_address_bytes(key)))
 }
 
 pub fn parse_signing_key<T: Into<String>>(key_str: T) -> Result<SigningKey> {

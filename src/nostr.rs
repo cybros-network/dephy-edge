@@ -1,7 +1,6 @@
 use crate::preludes::*;
 
 use base58::{FromBase58, ToBase58};
-use prost::Message;
 use tokio_util::sync::CancellationToken;
 
 pub static DEPHY_NOSTR_KIND: Kind = Kind::Regular(1111);
@@ -75,9 +74,9 @@ async fn wrap_handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification
 
 // Forward messages from MQTT/HTTP to NoStr
 pub async fn send_signed_message_to_network(
+    ctx: Arc<AppContext>,
     client: Arc<Client>,
     msg: SignedMessage,
-    edge_addr: &str,
     keys: &Keys,
 ) -> Result<()> {
     trace!("send_signed_message_to_network");
@@ -95,7 +94,14 @@ pub async fn send_signed_message_to_network(
         bail!("Bad to_addr")
     };
 
-    let content = msg.encode_to_vec().as_slice().to_base58();
+    let new_msg = SignedMessage {
+        raw: msg.raw,
+        hash: msg.hash,
+        nonce: msg.nonce,
+        signature: msg.signature,
+        last_edge_addr: Some(ctx.eth_addr_bytes.to_vec()),
+    };
+    let content = new_msg.encode_to_vec().as_slice().to_base58();
     let tags = vec![
         Tag::Generic(TagKind::Custom("c".to_string()), vec!["dephy".to_string()]),
         Tag::Generic(
@@ -108,7 +114,7 @@ pub async fn send_signed_message_to_network(
         ),
         Tag::Generic(
             TagKind::Custom("dephy_edge".to_string()),
-            vec![format!("did:dephy:{}", edge_addr)],
+            vec![format!("did:dephy:{}", ctx.eth_addr.as_str())],
         ),
     ];
     let event = EventBuilder::new(default_kind(), content, tags.as_slice()).to_event(keys)?;

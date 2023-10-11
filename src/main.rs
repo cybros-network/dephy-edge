@@ -7,6 +7,7 @@ mod mqtt_broker;
 mod nostr;
 mod preludes;
 
+use crate::crypto::get_eth_address_bytes;
 use crate::{preludes::*, proto::SignedMessage};
 
 use crate::nostr::{send_signed_message_to_network, start_nostr_context};
@@ -25,7 +26,8 @@ fn main() -> Result<()> {
 
     let signing_key = parse_signing_key(opt.priv_key.as_str())?;
     let verifying_key = signing_key.verifying_key().clone();
-    let eth_addr = get_eth_address(&verifying_key);
+    let eth_addr_bytes = get_eth_address_bytes(&verifying_key);
+    let eth_addr = format!("0x{}", hex::encode(&eth_addr_bytes));
 
     let mqtt_config = config::Config::builder()
         .add_source(config::File::new(
@@ -60,7 +62,7 @@ fn main() -> Result<()> {
             opt_move,
             signing_key,
             verifying_key,
-            eth_addr,
+            eth_addr_bytes,
             mqtt_tx,
             mqtt_rx,
         )
@@ -73,7 +75,7 @@ fn wrap_async_main(
     opt: CliOpt,
     signing_key: SigningKey,
     verifying_key: VerifyingKey,
-    eth_addr: String,
+    eth_addr_bytes: Bytes,
     mqtt_tx: LinkTx,
     mqtt_rx: LinkRx,
 ) {
@@ -88,7 +90,7 @@ fn wrap_async_main(
         opt,
         signing_key,
         verifying_key,
-        eth_addr,
+        eth_addr_bytes,
         mqtt_tx,
         mqtt_rx,
     )) {
@@ -100,14 +102,14 @@ async fn async_main(
     opt: CliOpt,
     signing_key: SigningKey,
     verifying_key: VerifyingKey,
-    eth_addr: String,
+    eth_addr_bytes: Bytes,
     mqtt_tx: LinkTx,
     mqtt_rx: LinkRx,
 ) -> Result<()> {
     let cancel_token = CancellationToken::new();
 
     let mqtt_tx = Arc::new(Mutex::new(mqtt_tx));
-    let (nostr_tx, mut nostr_rx) = mpsc::unbounded_channel::<SignedMessage>();
+    let (nostr_tx, mut nostr_sender_rx) = mpsc::unbounded_channel::<SignedMessage>();
 
     let keys = SecretKey::from_str(opt.priv_key.as_str())?;
     let keys = Keys::new(keys);
@@ -121,7 +123,8 @@ async fn async_main(
         opt,
         signing_key,
         verifying_key,
-        eth_addr,
+        eth_addr: format!("0x{}", hex::encode(&eth_addr_bytes)),
+        eth_addr_bytes,
         mqtt_tx: mqtt_tx.clone(),
         nostr_client: nostr_client.clone(),
         nostr_tx,
@@ -133,17 +136,13 @@ async fn async_main(
     let cancel_token_move = cancel_token.clone();
     let nostr_client_move = nostr_client.clone();
     let nostr_rx_handle = tokio::spawn(async move {
-        while let Some(m) = nostr_rx.recv().await {
+        while let Some(m) = nostr_sender_rx.recv().await {
             if cancel_token_move.is_cancelled() {
                 return;
             }
-            if let Err(e) = send_signed_message_to_network(
-                nostr_client_move.clone(),
-                m,
-                ctx.eth_addr.as_str(),
-                &keys,
-            )
-            .await
+            if let Err(e) =
+                send_signed_message_to_network(ctx.clone(), nostr_client_move.clone(), m, &keys)
+                    .await
             {
                 debug!("send_signed_message_to_network: {:?}", e)
             }

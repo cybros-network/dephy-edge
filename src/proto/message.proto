@@ -30,4 +30,5 @@ message SignedMessage {
     required bytes hash = 2;
     required uint64 nonce = 3; // Must greater than previous message
     required bytes signature = 4;
+    optional bytes last_edge_addr = 5;
 }
