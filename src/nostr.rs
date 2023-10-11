@@ -1,4 +1,4 @@
-use crate::preludes::*;
+use crate::{crypto::did_str_to_addr_bytes, preludes::*};
 
 use base58::{FromBase58, ToBase58};
 use tokio_util::sync::CancellationToken;
@@ -51,13 +51,58 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
     // todo: blacklist
     if let RelayPoolNotification::Event(u, n) = n {
         debug!("receiving dephy event from {:?}: {:?}", u, &n);
+
+        let mut c_dephy = false;
+
+        let mut edge = None;
+        let mut from = None;
+        let mut to = None;
+
+        for t in n.tags {
+            if let Tag::Generic(TagKind::Custom(t), m) = t {
+                if m.len() == 1 {
+                    match t.as_str() {
+                        "c" => c_dephy = m[0].as_str() == "dephy",
+                        "dephy_edge" => edge = Some(did_str_to_addr_bytes(&m[0])?),
+                        "dephy_from" => from = Some(did_str_to_addr_bytes(&m[0])?),
+                        "dephy_to" => to = Some(did_str_to_addr_bytes(&m[0])?),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        if !c_dephy || edge.is_none() || from.is_none() || to.is_none() {
+            return Ok(());
+        }
+
+        let edge = edge.unwrap();
+        let from = from.unwrap();
+        let to = to.unwrap();
+
+        let curr_addr = &ctx.eth_addr_bytes;
+        if edge.eq(curr_addr) {
+            return Ok(());
+        }
+
         let content = n
             .content
             .from_base58()
             .map_err(|e| anyhow!("error while parsing content: {:?}", e))?;
+        let signed = SignedMessage::decode(content.as_slice())?;
+        if let Some(edge) = &signed.last_edge_addr {
+            if edge.eq(curr_addr) {
+                return Ok(());
+            }
+        }
 
-        let _signed = SignedMessage::decode(content.as_slice())?;
+        let raw = RawMessage::decode(signed.raw.as_slice())?;
+        if from.ne(&raw.from_address) || to.ne(&raw.to_address) {
+            return Ok(());
+        }
+
         // todo: check signature
+
         let mqtt_tx = ctx.mqtt_tx.clone();
         let mut mqtt_tx = mqtt_tx.lock().await;
         mqtt_tx.publish(DEPHY_TOPIC, content)?;
