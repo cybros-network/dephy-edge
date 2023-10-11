@@ -1,9 +1,15 @@
+pub mod proto {
+    include!(concat!(env!("OUT_DIR"), "/dephy.message.rs"));
+}
+
 mod crypto;
 mod mqtt_broker;
+mod nostr;
 mod preludes;
 
-use crate::preludes::*;
+use crate::{preludes::*, proto::SignedMessage};
 
+use crate::nostr::{send_signed_message_to_network, start_nostr_context};
 use clap::Parser;
 use crypto::{get_eth_address, parse_signing_key};
 use dotenv::dotenv;
@@ -35,11 +41,17 @@ fn main() -> Result<()> {
 
     let (mut mqtt_tx, mqtt_rx) = broker.link(format!("edge-{}", &eth_addr).as_str()).unwrap();
 
-    let _mqtt_server_handle = thread::spawn(move || {
-        if let Err(e) = broker.start() {
-            error!("broker::start: {:?}", e)
-        }
-    });
+    if opt.no_mqtt_server {
+        info!("Not starting MQTT broker due to --no-mqtt-server")
+    } else {
+        info!("Started MQTT server");
+        let _ = thread::spawn(move || {
+            if let Err(e) = broker.start() {
+                error!("broker::start: {:?}", e)
+            }
+        });
+    }
+
     mqtt_tx.subscribe("/dephy/signed_message")?;
 
     let opt_move = opt.clone();
@@ -95,17 +107,69 @@ async fn async_main(
     let cancel_token = CancellationToken::new();
 
     let mqtt_tx = Arc::new(Mutex::new(mqtt_tx));
+    let (nostr_tx, mut nostr_rx) = mpsc::unbounded_channel::<SignedMessage>();
+
+    let keys = SecretKey::from_str(opt.priv_key.as_str())?;
+    let keys = Keys::new(keys);
+    let nostr_client = Client::new(&keys);
+    for r in opt.nostr_relay_list.iter() {
+        nostr_client.add_relay(r.as_str(), None).await?;
+    }
+
+    let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {
         opt,
         signing_key,
         verifying_key,
         eth_addr,
         mqtt_tx: mqtt_tx.clone(),
+        nostr_client: nostr_client.clone(),
+        nostr_tx,
     });
 
     let mqtt_broker_handle = tokio::spawn(mqtt_broker(ctx.clone(), mqtt_rx, cancel_token.clone()));
+    let nostr_handle = tokio::spawn(start_nostr_context(ctx.clone(), cancel_token.clone()));
+
+    let cancel_token_move = cancel_token.clone();
+    let nostr_client_move = nostr_client.clone();
+    let nostr_rx_handle = tokio::spawn(async move {
+        while let Some(m) = nostr_rx.recv().await {
+            if cancel_token_move.is_cancelled() {
+                return;
+            }
+            if let Err(e) = send_signed_message_to_network(
+                nostr_client_move.clone(),
+                m,
+                ctx.eth_addr.as_str(),
+                &keys,
+            )
+            .await
+            {
+                debug!("send_signed_message_to_network: {:?}", e)
+            }
+        }
+    });
 
     tokio::select! {
+        ret = nostr_handle => {
+            cancel_token.cancel();
+            match ret {
+                Ok(ret) => {
+                    if let Err(e) = ret {
+                        error!("nostr_handle: {:?}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("spawning nostr_handle: {:?}", e);
+                }
+            }
+        }
+        ret = nostr_rx_handle => {
+            cancel_token.cancel();
+            if let Err(e) = ret {
+                error!("spawning nostr_rx_handle: {:?}", e);
+            }
+        }
         ret = mqtt_broker_handle => {
             cancel_token.cancel();
             match ret {

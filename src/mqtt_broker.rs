@@ -17,8 +17,9 @@ pub async fn mqtt_broker(
             match n {
                 rumqttd::Notification::Forward(n) => {
                     let n = n.publish;
+                    let ctx = ctx.clone();
                     let _ = tokio::spawn(async move {
-                        if let Err(e) = handle_payload(n.payload).await {
+                        if let Err(e) = handle_payload(ctx, n.payload).await {
                             error!("handle_payload: {:?}", e)
                         }
                     });
@@ -29,6 +30,14 @@ pub async fn mqtt_broker(
     }
 }
 
-async fn handle_payload(payload: Bytes) -> Result<()> {
+async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
+    let nostr_tx = ctx.nostr_tx.clone();
+    let m = SignedMessage {
+        raw: vec![],
+        hash: vec![],
+        nonce: 12312312312,
+        signature: vec![],
+    };
+    nostr_tx.send(m)?;
     Ok(())
 }
