@@ -1,0 +1,1 @@
+ pb gen ts -o ./proto --proto-path ../src/proto/ ../src/proto/message.proto

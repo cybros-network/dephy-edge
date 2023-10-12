@@ -100,3 +100,5 @@ fabric.properties
 Dockerfile
 compose.yml
 compose.*.yml
+
+read-demo
