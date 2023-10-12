@@ -1,6 +1,5 @@
 use crate::preludes::*;
 
-use base58::ToBase58;
 use tokio::task::JoinSet;
 use warp::{http::StatusCode, Filter};
 
@@ -76,7 +75,7 @@ async fn handle_signed_message(ctx: Arc<AppContext>, body: Bytes) -> Result<Box<
 
     // todo: check signature
 
-    let content = body.to_base58();
+    let content = bs58::encode(body).into_string();
 
     let mqtt_tx = ctx.mqtt_tx.clone();
     let mut mqtt_tx = mqtt_tx.lock().await;

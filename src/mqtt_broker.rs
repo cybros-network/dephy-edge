@@ -33,6 +33,7 @@ pub async fn mqtt_broker(
 // Forward events from MQTT to NoStr
 async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
     let nostr_tx = ctx.nostr_tx.clone();
+
     let msg = SignedMessage::decode(payload.as_ref())?;
 
     // Don't redistribute self

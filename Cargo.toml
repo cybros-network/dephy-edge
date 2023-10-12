@@ -30,8 +30,8 @@ config = "0.13.3"
 sha3 = "0.10.8"
 nostr-sdk = "0.24.0"
 prost = "0.12.1"
-base58 = "0.2.0"
 warp = "0.3.6"
+bs58 = "0.5.0"
 
 [build-dependencies]
 prost-build = "0.12.1"

@@ -35,7 +35,7 @@ pub struct CliOpt {
 
     #[clap(short = 'k', long, env = "DEPHY_PRIV_KEY")]
     pub priv_key: String,
-    #[clap(short = 'n', long, default_values_t = ["wss://relay.damus.io".to_string()])]
+    #[clap(short = 'n', long, env, default_values_t = ["wss://relay.damus.io".to_string()])]
     pub nostr_relay_list: Vec<String>,
 }
 

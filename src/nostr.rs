@@ -1,6 +1,5 @@
 use crate::{crypto::did_str_to_addr_bytes, preludes::*};
 
-use base58::{FromBase58, ToBase58};
 use tokio_util::sync::CancellationToken;
 
 pub static DEPHY_NOSTR_KIND: Kind = Kind::Regular(1111);
@@ -85,10 +84,7 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
             return Ok(());
         }
 
-        let content = n
-            .content
-            .from_base58()
-            .map_err(|e| anyhow!("error while parsing content: {:?}", e))?;
+        let content = bs58::decode(n.content).into_vec()?;
         let signed = SignedMessage::decode(content.as_slice())?;
         if let Some(edge) = &signed.last_edge_addr {
             if edge.eq(curr_addr) {
@@ -146,7 +142,7 @@ pub async fn send_signed_message_to_network(
         signature: msg.signature,
         last_edge_addr: Some(ctx.eth_addr_bytes.to_vec()),
     };
-    let content = new_msg.encode_to_vec().as_slice().to_base58();
+    let content = bs58::encode(new_msg.encode_to_vec()).into_string();
     let tags = vec![
         Tag::Generic(TagKind::Custom("c".to_string()), vec!["dephy".to_string()]),
         Tag::Generic(
