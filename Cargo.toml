@@ -36,6 +36,14 @@ warp = "0.3.6"
 [build-dependencies]
 prost-build = "0.12.1"
 
+[[bin]]
+name = "dephy-edge"
+path = "src/bin/dephy_edge.rs"
+
+[[bin]]
+name = "dephy-edge-utils"
+path = "src/bin/utils.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

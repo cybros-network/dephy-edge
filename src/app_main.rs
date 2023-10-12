@@ -1,28 +1,18 @@
-pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/dephy.message.rs"));
-}
-
-mod crypto;
-mod http;
-mod mqtt_broker;
-mod nostr;
-mod preludes;
-
 use crate::crypto::get_eth_address_bytes;
+use crate::crypto::parse_signing_key;
 use crate::http::start_http_server;
+use crate::mqtt_broker::mqtt_broker;
+use crate::nostr::{send_signed_message_to_network, start_nostr_context};
 use crate::{preludes::*, proto::SignedMessage};
 
-use crate::nostr::{send_signed_message_to_network, start_nostr_context};
 use clap::Parser;
-use crypto::parse_signing_key;
 use dotenv::dotenv;
-use mqtt_broker::mqtt_broker;
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-fn main() -> Result<()> {
+pub fn app_main() -> Result<()> {
     dotenv().ok();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let opt = CliOpt::parse();
