@@ -1,0 +1,8 @@
+services:
+    edge:
+        image: ghcr.io/dephy-io/dephy-edge:latest
+        ports:
+            - 1883:1883
+            - 3883:3883
+        env_file:
+            - .env.compose.local

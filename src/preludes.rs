@@ -30,7 +30,7 @@ pub struct CliOpt {
 
     #[clap(short = 'q', long, env, default_value = "./rumqttd.toml")]
     pub mqtt_config_file: String,
-    #[clap(short = 'l', long, env, default_values = ["0.0.0.0:3883", "[::0]:3883"])]
+    #[clap(short = 'l', long, env, default_values = ["[::]:3883"])]
     pub http_bind_address: Vec<SocketAddr>,
 
     #[clap(short = 'k', long, env = "DEPHY_PRIV_KEY")]
