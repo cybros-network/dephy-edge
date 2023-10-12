@@ -1,6 +1,6 @@
 use crate::preludes::*;
 
-use base58::{FromBase58, ToBase58};
+use base58::ToBase58;
 use tokio::task::JoinSet;
 use warp::{http::StatusCode, Filter};
 
@@ -17,7 +17,7 @@ pub struct AppHttpError {
 
 pub async fn start_http_server(ctx: Arc<AppContext>) -> Result<()> {
     let main_filter = warp::post()
-        .and(warp::path("dephy/signed_message"))
+        .and(warp::path!("dephy" / "signed_message"))
         .and(warp::body::content_length_limit(1024 * 1024))
         .and(warp::header::exact("content-type", "application/x-dephy"))
         .and(with_ctx(ctx.clone()))
@@ -28,6 +28,7 @@ pub async fn start_http_server(ctx: Arc<AppContext>) -> Result<()> {
     for addr in ctx.opt.http_bind_address.clone().into_iter() {
         let main_filter = main_filter.clone();
         js.spawn(async move {
+            info!("Started HTTP server on {:?}", &addr);
             warp::serve(main_filter).run(addr).await;
         });
     }
