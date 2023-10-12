@@ -3,16 +3,18 @@ pub mod proto {
 }
 
 mod crypto;
+mod http;
 mod mqtt_broker;
 mod nostr;
 mod preludes;
 
 use crate::crypto::get_eth_address_bytes;
+use crate::http::start_http_server;
 use crate::{preludes::*, proto::SignedMessage};
 
 use crate::nostr::{send_signed_message_to_network, start_nostr_context};
 use clap::Parser;
-use crypto::{get_eth_address, parse_signing_key};
+use crypto::parse_signing_key;
 use dotenv::dotenv;
 use mqtt_broker::mqtt_broker;
 use std::thread;
@@ -131,6 +133,7 @@ async fn async_main(
     });
 
     let mqtt_broker_handle = tokio::spawn(mqtt_broker(ctx.clone(), mqtt_rx, cancel_token.clone()));
+    let http_handle = tokio::spawn(start_http_server(ctx.clone()));
     let nostr_handle = tokio::spawn(start_nostr_context(ctx.clone(), cancel_token.clone()));
 
     let cancel_token_move = cancel_token.clone();
@@ -179,6 +182,19 @@ async fn async_main(
                 }
                 Err(e) => {
                     error!("spawning mqtt_broker_handle: {:?}", e);
+                }
+            }
+        }
+        ret = http_handle => {
+            cancel_token.cancel();
+            match ret {
+                Ok(ret) => {
+                    if let Err(e) = ret {
+                        error!("http_handle: {:?}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("spawning http_handle: {:?}", e);
                 }
             }
         }
