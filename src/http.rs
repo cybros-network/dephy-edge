@@ -17,7 +17,6 @@ pub struct AppHttpError {
 pub async fn start_http_server(ctx: Arc<AppContext>) -> Result<()> {
     let main_filter = warp::post()
         .and(warp::path!("dephy" / "signed_message"))
-        .and(warp::body::content_length_limit(1024 * 1024))
         .and(warp::header::exact("content-type", "application/x-dephy"))
         .and(with_ctx(ctx.clone()))
         .and(warp::body::bytes())
