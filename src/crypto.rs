@@ -40,3 +40,7 @@ pub fn did_str_to_addr_bytes<T: Into<String>>(did_str: T) -> Result<Vec<u8>> {
     }
     Ok(hex::decode(did_str)?)
 }
+
+pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
+    let msg: SignedMessage = SignedMessage::decode(message_hex.as_slice())?;
+}
