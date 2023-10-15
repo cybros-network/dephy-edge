@@ -2,7 +2,7 @@ use bytes::Bytes;
 use rumqttd::local::LinkRx;
 use tokio_util::sync::CancellationToken;
 
-use crate::preludes::*;
+use crate::{crypto::check_message, preludes::*};
 
 pub async fn mqtt_broker(
     ctx: Arc<AppContext>,
@@ -32,8 +32,7 @@ pub async fn mqtt_broker(
 
 // Forward events from MQTT to NoStr
 async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
-    let msg = SignedMessage::decode(payload.as_ref())?;
-    let raw = RawMessage::decode(msg.raw.as_slice())?;
+    let (msg, raw) = check_message(payload.as_ref())?;
 
     let mqtt_tx = ctx.mqtt_tx.clone();
     let mut mqtt_tx = mqtt_tx.lock().await;

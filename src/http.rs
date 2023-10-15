@@ -1,4 +1,4 @@
-use crate::preludes::*;
+use crate::{crypto::check_message, preludes::*};
 
 use tokio::task::JoinSet;
 use warp::{http::StatusCode, Filter};
@@ -67,13 +67,11 @@ async fn wrap_handle_signed_message(
 }
 
 async fn handle_signed_message(ctx: Arc<AppContext>, body: Bytes) -> Result<Box<dyn warp::Reply>> {
-    let msg = SignedMessage::decode(body.as_ref())?;
+    let (msg, _) = check_message(body.as_ref())?;
 
     if *&msg.last_edge_addr.is_some() {
         bail!("Message must be from a device!");
     }
-
-    // todo: check signature
 
     let content = body.as_ref().to_vec();
 

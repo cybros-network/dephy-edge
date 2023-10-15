@@ -1,4 +1,7 @@
-use crate::{crypto::did_str_to_addr_bytes, preludes::*};
+use crate::{
+    crypto::{check_message, did_str_to_addr_bytes},
+    preludes::*,
+};
 
 use tokio_util::sync::CancellationToken;
 
@@ -85,19 +88,16 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
         }
 
         let content = bs58::decode(n.content).into_vec()?;
-        let signed = SignedMessage::decode(content.as_slice())?;
+        let (signed, raw) = check_message(content.as_slice())?;
+
         if let Some(edge) = &signed.last_edge_addr {
             if edge.eq(curr_addr) {
                 return Ok(());
             }
         }
-
-        let raw = RawMessage::decode(signed.raw.as_slice())?;
         if from.ne(&raw.from_address) || to.ne(&raw.to_address) {
             return Ok(());
         }
-
-        // todo: check signature
 
         let mqtt_tx = ctx.mqtt_tx.clone();
         let mut mqtt_tx = mqtt_tx.lock().await;
@@ -121,9 +121,8 @@ pub async fn send_signed_message_to_network(
     keys: &Keys,
 ) -> Result<()> {
     trace!("send_signed_message_to_network");
+    let (msg, raw) = check_message(msg.encode_to_vec().as_slice())?;
 
-    // todo: check signature
-    let raw = RawMessage::decode(msg.raw.as_slice())?;
     let from_addr = if raw.from_address.len() == 20 {
         hex::encode(&raw.from_address)
     } else {

@@ -126,7 +126,7 @@ async fn main() -> Result<()> {
             let curr_hash = hasher.finalize_reset();
 
             println!("==========");
-            println!("Raw message: 0x{}", raw_hex,);
+            println!("Raw message: 0x{}", raw_hex);
             assert_eq!(
                 hash,
                 curr_hash.as_slice(),
@@ -136,7 +136,6 @@ async fn main() -> Result<()> {
             );
             println!("Raw message hash: 0x{}", hash_hex);
             let raw_msg = RawMessage::decode(raw)?;
-            // println!("Decoded message: {:?}", &raw_msg);
             let RawMessage {
                 timestamp,
                 from_address,

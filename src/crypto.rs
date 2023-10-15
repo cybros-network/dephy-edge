@@ -1,8 +1,9 @@
 use crate::preludes::*;
 
+use anyhow::ensure;
 use k256::{
     ecdh::SharedSecret,
-    ecdsa::{SigningKey, VerifyingKey},
+    ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey},
 };
 use sha3::{Digest, Keccak256};
 
@@ -42,5 +43,75 @@ pub fn did_str_to_addr_bytes<T: Into<String>>(did_str: T) -> Result<Vec<u8>> {
 }
 
 pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
-    let msg: SignedMessage = SignedMessage::decode(message_hex.as_slice())?;
+    ensure!(data.len() > 0, "Message should not be empty!");
+
+    let mut hasher = Keccak256::new();
+
+    let msg = SignedMessage::decode(data)?;
+    let SignedMessage {
+        raw,
+        hash,
+        nonce,
+        signature,
+        ..
+    } = msg.clone();
+    let raw = raw.as_slice();
+    let hash = hash.as_slice();
+    let hash_hex = hex::encode(hash);
+    hasher.update(raw);
+    hasher.update(nonce.to_string().as_bytes());
+    let curr_hash = hasher.finalize_reset();
+    ensure!(
+        hash == curr_hash.as_slice(),
+        "Hash verification failed: expected=0x{} current=0x{}",
+        hash_hex,
+        hex::encode(curr_hash)
+    );
+    debug!("Raw message hash: 0x{}", hash_hex);
+
+    let raw_msg = RawMessage::decode(raw)?;
+    let RawMessage {
+        timestamp,
+        from_address,
+        ..
+    } = raw_msg.clone();
+    ensure!(
+        nonce == timestamp,
+        "Message timestamp check failed: outer={} inner={}",
+        nonce,
+        timestamp
+    );
+
+    let from_address = from_address.as_slice();
+    let from_address_hex = hex::encode(from_address);
+    let signature = signature.as_slice();
+    ensure!(signature.len() == 65, "Bad signature length!");
+    let r = &signature[0..32];
+    let s = &signature[32..64];
+    let v = &signature[64..];
+    debug!(
+        "R: 0x{}\nS: 0x{}\nV: 0x{}\nSigner address: 0x{}",
+        hex::encode(r),
+        hex::encode(s),
+        hex::encode(v),
+        from_address_hex,
+    );
+    let rs = Signature::try_from(&signature[0..64])?;
+    let v = RecoveryId::try_from(v[0])?;
+    hasher.update(hash);
+    let r_key = VerifyingKey::recover_from_digest(hasher, &rs, v)?;
+    let r_key_addr = get_eth_address_bytes(&r_key);
+    let r_key_addr = r_key_addr.as_ref();
+    ensure!(
+        from_address == r_key_addr.as_ref(),
+        "Signature check failed! expected_signer=0x{} actual_signer=0x{}",
+        from_address_hex,
+        hex::encode(r_key_addr)
+    );
+    debug!(
+        "Signer public key: 0x{}",
+        hex::encode(r_key.to_sec1_bytes())
+    );
+
+    Ok((msg, raw_msg))
 }
