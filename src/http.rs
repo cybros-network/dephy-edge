@@ -75,7 +75,7 @@ async fn handle_signed_message(ctx: Arc<AppContext>, body: Bytes) -> Result<Box<
 
     // todo: check signature
 
-    let content = bs58::encode(body).into_string();
+    let content = body.as_ref().to_vec();
 
     let mqtt_tx = ctx.mqtt_tx.clone();
     let mut mqtt_tx = mqtt_tx.lock().await;
