@@ -90,7 +90,7 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
         let content = bs58::decode(n.content).into_vec()?;
         let (mut signed, raw) = check_message(content.as_slice())?;
 
-        if *&signed.last_edge_addr.is_some() {
+        if *&signed.last_edge_addr.is_none() {
             return Ok(());
         }
 
