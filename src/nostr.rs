@@ -88,16 +88,18 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
         }
 
         let content = bs58::decode(n.content).into_vec()?;
-        let (signed, raw) = check_message(content.as_slice())?;
+        let (mut signed, raw) = check_message(content.as_slice())?;
 
-        if let Some(edge) = &signed.last_edge_addr {
-            if edge.eq(curr_addr) {
-                return Ok(());
-            }
+        if *&signed.last_edge_addr.is_some() {
+            return Ok(());
         }
+
         if from.ne(&raw.from_address) || to.ne(&raw.to_address) {
             return Ok(());
         }
+
+        signed.last_edge_addr = Some(curr_addr.to_vec());
+        let content = signed.encode_to_vec();
 
         let mqtt_tx = ctx.mqtt_tx.clone();
         let mut mqtt_tx = mqtt_tx.lock().await;

@@ -112,6 +112,15 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
         "Signer public key: 0x{}",
         hex::encode(r_key.to_sec1_bytes())
     );
+    debug!(
+        "Last touched: 0x{}",
+        if let Some(addr) = &msg.last_edge_addr {
+            let addr = addr.as_slice();
+            hex::encode(addr)
+        } else {
+            "None".to_string()
+        }
+    );
 
     Ok((msg, raw_msg))
 }

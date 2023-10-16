@@ -21,6 +21,7 @@ pub fn app_main() -> Result<()> {
     let verifying_key = signing_key.verifying_key().clone();
     let eth_addr_bytes = get_eth_address_bytes(&verifying_key);
     let eth_addr = format!("0x{}", hex::encode(&eth_addr_bytes));
+    info!("My address: {}", &eth_addr);
 
     let mqtt_config = config::Config::builder()
         .add_source(config::File::new(

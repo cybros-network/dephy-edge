@@ -34,6 +34,13 @@ pub async fn mqtt_broker(
 async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
     let (msg, raw) = check_message(payload.as_ref())?;
 
+    // Don't redistribute self
+    if let Some(last_edge_addr) = &msg.last_edge_addr {
+        if last_edge_addr.as_slice() == &ctx.eth_addr_bytes {
+            return Ok(());
+        }
+    }
+
     let mqtt_tx = ctx.mqtt_tx.clone();
     let mut mqtt_tx = mqtt_tx.lock().await;
     mqtt_tx.publish(
@@ -46,13 +53,8 @@ async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
     )?;
     drop(mqtt_tx);
 
-    // Don't redistribute self
-    if let Some(last_edge_addr) = &msg.last_edge_addr {
-        if last_edge_addr.as_slice() == &ctx.eth_addr_bytes {
-            return Ok(());
-        }
-    }
     let nostr_tx = ctx.nostr_tx.clone();
     nostr_tx.send(msg)?;
+
     Ok(())
 }
