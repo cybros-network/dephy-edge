@@ -32,9 +32,9 @@ nostr-sdk = "0.24.0"
 prost = "0.12.1"
 warp = "0.3.6"
 bs58 = "0.5.0"
+dephy_proto = "0.1.1"
 
 [build-dependencies]
-prost-build = "0.12.1"
 
 [[bin]]
 name = "dephy-edge"

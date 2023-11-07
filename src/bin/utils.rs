@@ -78,6 +78,7 @@ async fn main() -> Result<()> {
                 payload,
                 iv: None,
                 w3b: None,
+                kind: 1,
             };
             let raw = raw.encode_to_vec();
             let mut hasher = Keccak256::new();

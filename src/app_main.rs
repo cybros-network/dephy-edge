@@ -3,7 +3,7 @@ use crate::crypto::parse_signing_key;
 use crate::http::start_http_server;
 use crate::mqtt_broker::mqtt_broker;
 use crate::nostr::{send_signed_message_to_network, start_nostr_context};
-use crate::{preludes::*, proto::SignedMessage};
+use crate::preludes::*;
 
 use clap::Parser;
 use dotenv::dotenv;
