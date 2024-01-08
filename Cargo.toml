@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = ["crates/*", "vendor/*"]
+
 [dependencies]
 bytes = "1.5.0"
 futures = "0.3.28"
@@ -32,7 +35,7 @@ nostr-sdk = "0.24.0"
 prost = "0.12.1"
 warp = "0.3.6"
 bs58 = "0.5.0"
-dephy_proto = "0.1.1"
+dephy-types = { version = "0.1.0", path = "crates/dephy-types" }
 
 [build-dependencies]
 

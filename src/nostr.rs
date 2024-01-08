@@ -3,6 +3,7 @@ use crate::{
     preludes::*,
 };
 
+use dephy_types::borsh::to_vec;
 use tokio_util::sync::CancellationToken;
 
 pub static DEPHY_NOSTR_KIND: Kind = Kind::Regular(1111);
@@ -99,7 +100,7 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
         }
 
         signed.last_edge_addr = Some(curr_addr.to_vec());
-        let content = signed.encode_to_vec();
+        let content = to_vec(&signed)?;
 
         let mqtt_tx = ctx.mqtt_tx.clone();
         let mut mqtt_tx = mqtt_tx.lock().await;
@@ -123,7 +124,7 @@ pub async fn send_signed_message_to_network(
     keys: &Keys,
 ) -> Result<()> {
     trace!("send_signed_message_to_network");
-    let (msg, raw) = check_message(msg.encode_to_vec().as_slice())?;
+    let (msg, raw) = check_message(to_vec(&msg)?.as_slice())?;
 
     let from_addr = if raw.from_address.len() == 20 {
         hex::encode(&raw.from_address)
@@ -143,7 +144,7 @@ pub async fn send_signed_message_to_network(
         signature: msg.signature,
         last_edge_addr: Some(ctx.eth_addr_bytes.to_vec()),
     };
-    let content = bs58::encode(new_msg.encode_to_vec()).into_string();
+    let content = bs58::encode(to_vec(&new_msg)?.as_slice()).into_string();
     let tags = vec![
         Tag::Generic(TagKind::Custom("c".to_string()), vec!["dephy".to_string()]),
         Tag::Generic(

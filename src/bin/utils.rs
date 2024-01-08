@@ -1,4 +1,5 @@
 use dephy_edge::*;
+use dephy_types::borsh::{from_slice, to_vec};
 use preludes::*;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -76,11 +77,10 @@ async fn main() -> Result<()> {
                 to_address: zero_addr,
                 encrypted: false,
                 payload,
-                iv: None,
-                w3b: None,
-                kind: 1,
+                channel: MessageChannel::Normal(0),
+                enc_iv: None,
             };
-            let raw = raw.encode_to_vec();
+            let raw = to_vec(&raw)?;
             let mut hasher = Keccak256::new();
             hasher.update(&raw);
             hasher.update(timestamp.to_string().as_bytes());
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
                 signature: sign_bytes,
                 last_edge_addr: None,
             };
-            let signed = signed.encode_to_vec();
+            let signed = to_vec(&signed)?;
             println!("{}", hex::encode(signed));
         }
         Command::CheckMessage {
@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
             let mut hasher = Keccak256::new();
 
             let message_hex = hex::decode(message_hex)?;
-            let msg = SignedMessage::decode(message_hex.as_slice())?;
+            let msg = from_slice(message_hex.as_slice())?;
 
             let SignedMessage {
                 raw,
@@ -136,7 +136,7 @@ async fn main() -> Result<()> {
                 hex::encode(curr_hash)
             );
             println!("Raw message hash: 0x{}", hash_hex);
-            let raw_msg = RawMessage::decode(raw)?;
+            let raw_msg = from_slice(raw)?;
             let RawMessage {
                 timestamp,
                 from_address,

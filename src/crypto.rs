@@ -1,6 +1,7 @@
 use crate::preludes::*;
 
 use anyhow::ensure;
+use dephy_types::borsh::from_slice;
 use k256::{
     ecdh::SharedSecret,
     ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey},
@@ -47,7 +48,7 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
 
     let mut hasher = Keccak256::new();
 
-    let msg = SignedMessage::decode(data)?;
+    let msg = from_slice::<SignedMessage>(data)?;
     let SignedMessage {
         raw,
         hash,
@@ -69,7 +70,7 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
     );
     debug!("Raw message hash: 0x{}", hash_hex);
 
-    let raw_msg = RawMessage::decode(raw)?;
+    let raw_msg = from_slice::<RawMessage>(raw)?;
     let RawMessage {
         timestamp,
         from_address,

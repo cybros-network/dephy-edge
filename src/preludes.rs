@@ -1,6 +1,6 @@
 pub use anyhow::{anyhow, bail, Error, Result};
 pub use bytes::Bytes;
-pub use dephy_proto::*;
+pub use dephy_types::preludes::*;
 pub use k256;
 pub use k256::ecdsa::{SigningKey, VerifyingKey};
 pub use log::{debug, error, info, trace, warn};
