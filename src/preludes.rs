@@ -12,14 +12,19 @@ pub use primitive_types::{U128, U256};
 pub use prost::Message;
 pub use rumqttd::local::{LinkRx, LinkTx};
 pub use rumqttd::Broker;
-use std::net::SocketAddr;
 pub use std::str::FromStr;
 pub use std::sync::Arc;
 pub use tokio::sync::{mpsc, Mutex};
 
 use clap::Parser;
+use rings_node::provider::Provider;
+use std::net::SocketAddr;
 
 pub static DEPHY_TOPIC: &'static str = "/dephy/signed_message";
+pub static DEPHY_P2P_TOPIC: &'static str = "/dephy/p2p/#";
+pub static DEPHY_P2P_TOPIC_PREFIX: &'static str = "/dephy/p2p/";
+
+pub static ETH_ADDRESS_PREFIX: &'static str = "0x";
 
 #[derive(Debug, Parser, Clone)]
 pub struct CliOpt {
@@ -48,4 +53,5 @@ pub struct AppContext {
     pub mqtt_tx: Arc<Mutex<LinkTx>>,
     pub nostr_client: Arc<Client>,
     pub nostr_tx: mpsc::UnboundedSender<SignedMessage>,
+    pub rings_provider: Arc<Provider>,
 }

@@ -29,16 +29,17 @@ pub fn app_main() -> Result<()> {
             config::FileFormat::Toml,
         ))
         .build()?;
-    info!(
+    let mqtt_config = mqtt_config.try_deserialize()?;
+    debug!(
         "Loaded MQTT broker configuration from {}",
         opt.mqtt_config_file.as_str()
     );
-    let mut broker = Broker::new(mqtt_config.try_deserialize()?);
+    let mut broker = Broker::new(mqtt_config);
 
     let (mut mqtt_tx, mqtt_rx) = broker.link(format!("edge-{}", &eth_addr).as_str()).unwrap();
 
     if opt.no_mqtt_server {
-        info!("Not starting MQTT broker due to --no-mqtt-server")
+        warn!("Not starting MQTT broker due to --no-mqtt-server")
     } else {
         info!("Started MQTT server");
         let _ = thread::spawn(move || {
@@ -48,7 +49,8 @@ pub fn app_main() -> Result<()> {
         });
     }
 
-    mqtt_tx.subscribe("/dephy/signed_message")?;
+    mqtt_tx.subscribe(DEPHY_TOPIC)?;
+    mqtt_tx.subscribe(DEPHY_P2P_TOPIC)?;
 
     let opt_move = opt.clone();
     let async_main_handle = thread::spawn(move || {
@@ -112,6 +114,8 @@ async fn async_main(
         nostr_client.add_relay(r.as_str(), None).await?;
     }
 
+    let rings_provider = crate::rings::init_node(&signing_key).await?;
+
     let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {
         opt,
@@ -122,6 +126,7 @@ async fn async_main(
         mqtt_tx: mqtt_tx.clone(),
         nostr_client: nostr_client.clone(),
         nostr_tx,
+        rings_provider,
     });
 
     let mut js = JoinSet::new();

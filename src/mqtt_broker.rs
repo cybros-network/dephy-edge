@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use dephy_types::borsh::from_slice;
 use rumqttd::local::LinkRx;
 use tokio_util::sync::CancellationToken;
 
@@ -18,11 +19,23 @@ pub async fn mqtt_broker(
                 rumqttd::Notification::Forward(n) => {
                     let n = n.publish;
                     let ctx = ctx.clone();
-                    let _ = tokio::spawn(async move {
-                        if let Err(e) = handle_payload(ctx, n.payload).await {
-                            error!("handle_payload: {:?}", e)
-                        }
-                    });
+                    let topic = std::str::from_utf8(n.topic.as_ref())?;
+                    if topic == DEPHY_TOPIC {
+                        let _ = tokio::spawn(async move {
+                            if let Err(e) = handle_payload(ctx, n.payload).await {
+                                error!("handle_payload: {:?}", e)
+                            }
+                        });
+                    } else {
+                        let target = topic
+                            .replace(DEPHY_P2P_TOPIC_PREFIX, "")
+                            .replace(ETH_ADDRESS_PREFIX, "");
+                        let _ = tokio::spawn(async move {
+                            if let Err(e) = handle_local_payload(ctx, target, n.payload).await {
+                                error!("handle_local_payload: {:?}", e)
+                            }
+                        });
+                    }
                 }
                 _ => {}
             }
@@ -60,6 +73,24 @@ async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
 
     let nostr_tx = ctx.nostr_tx.clone();
     nostr_tx.send(msg)?;
+
+    Ok(())
+}
+
+async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Bytes) -> Result<()> {
+    let (_, raw) = check_message(payload.as_ref())?;
+
+    if raw.from_address != hex::decode(&target)? {
+        bail!("bad from_address to match {}", &target)
+    }
+
+    if MessageChannel::TunnelNegotiate != raw.channel {
+        bail!("Message to bad channel from {}", &target)
+    }
+
+    let msg = from_slice::<PtpLocalNegotiateMessage>(raw.payload.as_slice())?;
+
+    // todo: handle local message
 
     Ok(())
 }

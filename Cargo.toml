@@ -36,6 +36,11 @@ prost = "0.12.1"
 warp = "0.3.6"
 bs58 = "0.5.0"
 dephy-types = { version = "0.1.0", path = "crates/dephy-types" }
+rings-core = { git = "https://github.com/RingsNetwork/rings", rev = "3b4955d450504eb6835bdf99d94e434c57bb6a67", version = "0.5.2" }
+rings-node = { git = "https://github.com/RingsNetwork/rings", rev = "3b4955d450504eb6835bdf99d94e434c57bb6a67", version = "0.5.2" }
+rings-rpc = { git = "https://github.com/RingsNetwork/rings", rev = "3b4955d450504eb6835bdf99d94e434c57bb6a67", version = "0.5.2" }
+async-trait = "0.1.77"
+libsecp256k1 = "0.7.1"
 
 [build-dependencies]
 
