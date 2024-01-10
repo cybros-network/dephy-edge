@@ -88,9 +88,18 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
         bail!("Message to bad channel from {}", &target)
     }
 
-    let msg = from_slice::<PtpLocalNegotiateMessage>(raw.payload.as_slice())?;
+    let msg = from_slice::<PtpLocalMessage>(raw.payload.as_slice())?;
+    let msg = match msg {
+        PtpLocalMessage::FromDevice(msg) => msg,
+        PtpLocalMessage::FromBroker(_) => return Ok(()),
+    };
 
-    // todo: handle local message
+    match msg {
+        PtpLocalMessageFromDevice::Hello(_) => todo!(),
+        PtpLocalMessageFromDevice::Keepalive(_) => todo!(),
+        PtpLocalMessageFromDevice::Message(_, _) => todo!(),
+        PtpLocalMessageFromDevice::MeVoila(_) => todo!(), // todo: try_session
+    }
 
     Ok(())
 }

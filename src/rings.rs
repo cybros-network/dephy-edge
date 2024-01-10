@@ -14,7 +14,9 @@ use rings_node::provider::Provider;
 use rings_rpc::method::Method;
 use rings_rpc::protos::rings_node::*;
 
-struct BackendBehaviour;
+struct BackendBehaviour {
+    pub foo: String,
+}
 
 #[async_trait]
 impl MessageHandler<BackendMessage> for BackendBehaviour {
@@ -24,7 +26,7 @@ impl MessageHandler<BackendMessage> for BackendBehaviour {
         _ctx: &MessagePayload,
         msg: &BackendMessage,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        debug!("Received message: {:?}", msg);
+        debug!("{} Received message: {:?}", &self.foo, msg);
         Ok(())
     }
 }
@@ -40,23 +42,24 @@ pub async fn init_node(key: &SigningKey) -> Result<Arc<Provider>> {
     let mut skb = SessionSkBuilder::new(did.to_string(), "secp256k1".to_string());
     let sig = key.sign(&skb.unsigned_proof());
     skb = skb.set_session_sig(sig.to_vec());
-    let sk = skb.build().unwrap();
+    let sk = skb.build()?;
 
     let config = ProcessorConfig::new("stun://stun.l.google.com:19302".to_string(), sk, 3);
-    let storage_path = PersistenceStorage::random_path("./tmp");
-    let storage = PersistenceStorage::new_with_path(storage_path.as_str())
-        .await
-        .unwrap();
+    let storage = PersistenceStorage::random_path("./tmp");
+    let storage = PersistenceStorage::new_with_path(storage.as_str()).await?;
     let processor = Arc::new(
-        ProcessorBuilder::from_config(&config)
-            .unwrap()
+        ProcessorBuilder::from_config(&config)?
             .storage(storage)
-            .build()
-            .unwrap(),
+            .build()?,
     );
 
     let provider = Arc::new(Provider::from_processor(processor));
-    let backend = Arc::new(Backend::new(provider.clone(), Box::new(BackendBehaviour)));
+    let backend = Arc::new(Backend::new(
+        provider.clone(),
+        Box::new(BackendBehaviour {
+            foo: "bar".to_string(),
+        }),
+    ));
     provider.set_swarm_callback(backend).unwrap();
     let listening_provider = provider.clone();
     tokio::spawn(async move { listening_provider.listen().await });

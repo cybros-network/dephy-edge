@@ -1,3 +1,4 @@
+#[cfg(feature = "derive")]
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Clone, PartialEq)]
@@ -31,12 +32,4 @@ pub struct SignedMessage {
     pub nonce: u64,
     pub signature: Vec<u8>,
     pub last_edge_addr: Option<Vec<u8>>,
-}
-
-#[derive(Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
-#[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
-pub enum PtpLocalNegotiateMessage {
-    PlainBytes(Vec<u8>),
-    PlainText(String),
 }
