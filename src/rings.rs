@@ -13,6 +13,7 @@ use rings_node::processor::ProcessorConfig;
 use rings_node::provider::Provider;
 use rings_rpc::method::Method;
 use rings_rpc::protos::rings_node::*;
+use std::time::Duration;
 
 struct BackendBehaviour {
     pub foo: String,
@@ -23,15 +24,16 @@ impl MessageHandler<BackendMessage> for BackendBehaviour {
     async fn handle_message(
         &self,
         _provider: Arc<Provider>,
-        _ctx: &MessagePayload,
+        ctx: &MessagePayload,
         msg: &BackendMessage,
     ) -> Result<(), Box<dyn std::error::Error>> {
         debug!("{} Received message: {:?}", &self.foo, msg);
+        debug!("ctx: {:?}", ctx);
         Ok(())
     }
 }
 
-pub async fn init_node(key: &SigningKey) -> Result<Arc<Provider>> {
+pub async fn init_node(key: &SigningKey, opt: &CliOpt) -> Result<Arc<Provider>> {
     let key = key.to_bytes();
     let key: &[u8; 32] = key.as_slice().try_into()?;
     let key = libsecp256k1::SecretKey::parse(key)?;
@@ -64,10 +66,39 @@ pub async fn init_node(key: &SigningKey) -> Result<Arc<Provider>> {
     let listening_provider = provider.clone();
     tokio::spawn(async move { listening_provider.listen().await });
 
-    let resp = provider
-        .request(Method::NodeInfo, NodeInfoRequest {})
-        .await?;
-    debug!("NodeInfo: {:?}", resp);
+    let p_move = provider.clone();
+    tokio::spawn(async move {
+        loop {
+            let resp = p_move
+                .request(Method::NodeInfo, NodeInfoRequest {})
+                .await
+                .unwrap();
+            debug!("NodeInfo: {:?}", resp);
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        }
+    });
+
+    for url in &opt.p2p_bootstrap_node_list {
+        let provider = provider.clone();
+        let url = url.to_string();
+        tokio::spawn(async move {
+            // todo: monitor connection to bootstrap nodes
+            let resp = provider
+                .request(
+                    Method::ConnectPeerViaHttp,
+                    ConnectPeerViaHttpRequest {
+                        url: url.to_string(),
+                    },
+                )
+                .await;
+            match resp {
+                Ok(resp) => {
+                    info!("Connecting to {}: {}", url, resp);
+                }
+                Err(e) => error!("Connecting to {}: {}", url, e),
+            }
+        });
+    }
 
     Ok(provider)
 }

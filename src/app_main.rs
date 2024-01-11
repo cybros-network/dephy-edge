@@ -114,7 +114,7 @@ async fn async_main(
         nostr_client.add_relay(r.as_str(), None).await?;
     }
 
-    let rings_provider = crate::rings::init_node(&signing_key).await?;
+    let rings_provider = crate::rings::init_node(&signing_key, &opt).await?;
 
     let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {

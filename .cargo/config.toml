@@ -1,3 +1,5 @@
 [alias]
 edge = "run --bin dephy-edge --"
 utils = "run --bin dephy-edge-utils --"
+p2p_debug = "run --bin dephy-p2p-debug --"
+
