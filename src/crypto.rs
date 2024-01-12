@@ -1,12 +1,19 @@
+use crate::nostr::default_kind;
 use crate::preludes::*;
-
+use aes::cipher::block_padding::Pkcs7;
+use aes::cipher::{BlockEncryptMut, KeyIvInit};
 use anyhow::ensure;
-use dephy_types::borsh::from_slice;
+use dephy_types::borsh::{from_slice, to_vec};
 use k256::{
-    ecdh::SharedSecret,
+    ecdh::{diffie_hellman, SharedSecret},
     ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey},
+    PublicKey,
 };
+use rand::{rngs::OsRng, Fill};
 use sha3::{Digest, Keccak256};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 
 pub fn get_eth_address_bytes(key: &VerifyingKey) -> Bytes {
     let key = key.to_encoded_point(false);
@@ -124,4 +131,139 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
     );
 
     Ok((msg, raw_msg))
+}
+
+#[async_trait::async_trait]
+pub trait DephySigningKey {
+    async fn create_message(
+        &self,
+        channel: MessageChannel,
+        payload: Vec<u8>,
+        to_address: Option<Vec<u8>>,
+        encr_target: Option<PublicKey>,
+    ) -> Result<(SignedMessage, RawMessage)>;
+    async fn create_nostr_event(
+        &self,
+        channel: MessageChannel,
+        payload: Vec<u8>,
+        to_address: Option<Vec<u8>>,
+        encr_target: Option<PublicKey>,
+        keys: &Keys,
+    ) -> Result<Event>;
+    fn eth_addr(&self) -> Bytes;
+    fn eth_addr_string(&self) -> String;
+    fn public_key(&self) -> PublicKey;
+}
+
+#[async_trait::async_trait]
+impl DephySigningKey for SigningKey {
+    async fn create_message(
+        &self,
+        channel: MessageChannel,
+        payload: Vec<u8>,
+        to_address: Option<Vec<u8>>,
+        encr_target: Option<PublicKey>,
+    ) -> Result<(SignedMessage, RawMessage)> {
+        let iv = if encr_target.is_some() {
+            let mut buf = [0u8; 16];
+            buf.try_fill(&mut OsRng)?;
+            Some(buf.to_vec())
+        } else {
+            None
+        };
+        let payload = match &iv {
+            Some(iv) => {
+                let key = encr_target.as_ref().unwrap();
+                let key = diffie_hellman(self.as_nonzero_scalar(), key.as_affine());
+                let key = key.extract::<sha3::Keccak256>(None);
+                let ii: [u8; 0] = [];
+                let mut aes_key = [0u8; 16];
+                key.expand(&ii, &mut aes_key).expect("SHARED_KEY.expand");
+                let cipher = Aes128CbcEnc::new_from_slices(&aes_key, iv.as_slice())?;
+                cipher.encrypt_padded_vec_mut::<Pkcs7>(payload.as_slice())
+            }
+            None => payload,
+        };
+        let from_address = get_eth_address_bytes(&self.into()).to_vec();
+        let to_address = if let Some(pk) = encr_target.as_ref() {
+            get_eth_address_bytes(&pk.into()).try_into()?
+        } else {
+            if let Some(t) = to_address {
+                t
+            } else {
+                [0u8; 20].into()
+            }
+        };
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        let raw_msg = RawMessage {
+            channel,
+            timestamp,
+            from_address,
+            to_address,
+            encrypted: encr_target.is_some(),
+            payload,
+            enc_iv: iv,
+        };
+        let raw = to_vec(&raw_msg)?;
+        let mut hasher = Keccak256::new();
+        hasher.update(&raw);
+        hasher.update(timestamp.to_string().as_bytes());
+        let raw_hash = hasher.finalize_reset();
+        hasher.update(&raw_hash);
+        let (signature, recid) = self.sign_digest_recoverable(hasher)?;
+        let mut sign_bytes = signature.to_vec();
+        sign_bytes.append(&mut vec![recid.to_byte()]);
+
+        Ok((
+            SignedMessage {
+                raw,
+                hash: raw_hash.to_vec(),
+                nonce: timestamp,
+                signature: sign_bytes,
+                last_edge_addr: None,
+            },
+            raw_msg,
+        ))
+    }
+
+    async fn create_nostr_event(
+        &self,
+        channel: MessageChannel,
+        payload: Vec<u8>,
+        to_address: Option<Vec<u8>>,
+        encr_target: Option<PublicKey>,
+        keys: &Keys,
+    ) -> Result<Event> {
+        let (msg, raw) = self
+            .create_message(channel, payload, to_address, encr_target)
+            .await?;
+        let content = bs58::encode(to_vec(&msg)?.as_slice()).into_string();
+        let tags = vec![
+            Tag::Generic(TagKind::Custom("c".to_string()), vec!["dephy".to_string()]),
+            Tag::Generic(
+                TagKind::Custom("dephy_to".to_string()),
+                vec![format!("did:dephy:0x{}", hex::encode(&raw.to_address))],
+            ),
+            Tag::Generic(
+                TagKind::Custom("dephy_from".to_string()),
+                vec![format!("did:dephy:0x{}", hex::encode(&raw.from_address))],
+            ),
+            Tag::Generic(
+                TagKind::Custom("dephy_edge".to_string()),
+                vec![format!("did:dephy:{}", hex::encode(&raw.from_address))],
+            ),
+        ];
+        let ret = EventBuilder::new(default_kind(), content, tags.as_slice()).to_event(keys)?;
+        Ok(ret)
+    }
+
+    fn eth_addr(&self) -> Bytes {
+        get_eth_address_bytes(&self.into())
+    }
+    fn eth_addr_string(&self) -> String {
+        hex::encode(self.eth_addr())
+    }
+    fn public_key(&self) -> PublicKey {
+        self.verifying_key().into()
+    }
 }

@@ -13,6 +13,7 @@ bytes = "1.5.0"
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["futures-sink"] }
 rumqttd = "0.18.0"
+rumqttc = { version = "0.23.0", features = ["url"] }
 tokio = { version = "1.33.0", features = ["full"] }
 tokio-util = "0.7.9"
 anyhow = { version = "1.0.75", features = ["backtrace"] }
@@ -41,6 +42,10 @@ rings-node = { git = "https://github.com/RingsNetwork/rings", rev = "c4715b63bb0
 rings-rpc = { git = "https://github.com/RingsNetwork/rings", rev = "c4715b63bb0dd3edf820c33b7d22f6869422785f", version = "0.5.2" }
 async-trait = "0.1.77"
 libsecp256k1 = "0.7.1"
+rand = "0.8.5"
+aes = "0.8.3"
+cbc = "0.1.2"
+
 
 [build-dependencies]
 

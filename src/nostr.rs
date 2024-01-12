@@ -32,7 +32,7 @@ pub async fn start_nostr_context(
     // todo: blacklist
     let subscription_filter = default_filter(None).since(Timestamp::now());
     client.subscribe(vec![subscription_filter]).await;
-    info!("Subscribing dephy events from NoStr network...");
+    info!("Subscribing DePHY events from NoStr network...");
     client
         .handle_notifications(move |n| {
             let ctx = ctx.clone();
@@ -112,7 +112,7 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
 
 async fn wrap_handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) {
     if let Err(e) = handle_notification(ctx, n).await {
-        error!("handle_notification: {:?}", e)
+        debug!("handle_notification: {:?}", e)
     }
 }
 

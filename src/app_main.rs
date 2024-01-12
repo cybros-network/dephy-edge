@@ -114,7 +114,8 @@ async fn async_main(
         nostr_client.add_relay(r.as_str(), None).await?;
     }
 
-    let rings_provider = crate::rings::init_node(&signing_key, &opt).await?;
+    let rings_provider =
+        crate::rings::init_node(&signing_key, &opt.p2p_bootstrap_node_list).await?;
 
     let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {
@@ -162,7 +163,7 @@ async fn async_main(
     Ok(())
 }
 
-async fn wait_for_join_set(
+pub async fn wait_for_join_set(
     mut js: JoinSet<Result<()>>,
     cancel_token: CancellationToken,
 ) -> Result<()> {

@@ -1,3 +1,4 @@
+pub use crate::crypto::DephySigningKey;
 pub use anyhow::{anyhow, bail, Error, Result};
 pub use bytes::Bytes;
 pub use dephy_types::preludes::*;

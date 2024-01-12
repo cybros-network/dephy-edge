@@ -33,7 +33,10 @@ impl MessageHandler<BackendMessage> for BackendBehaviour {
     }
 }
 
-pub async fn init_node(key: &SigningKey, opt: &CliOpt) -> Result<Arc<Provider>> {
+pub async fn init_node(
+    key: &SigningKey,
+    p2p_bootstrap_node_list: &Vec<String>,
+) -> Result<Arc<Provider>> {
     let key = key.to_bytes();
     let key: &[u8; 32] = key.as_slice().try_into()?;
     let key = libsecp256k1::SecretKey::parse(key)?;
@@ -78,7 +81,7 @@ pub async fn init_node(key: &SigningKey, opt: &CliOpt) -> Result<Arc<Provider>> 
         }
     });
 
-    for url in &opt.p2p_bootstrap_node_list {
+    for url in p2p_bootstrap_node_list {
         let provider = provider.clone();
         let url = url.to_string();
         tokio::spawn(async move {

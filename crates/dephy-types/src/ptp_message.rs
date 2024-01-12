@@ -6,7 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 /// Message between user and device through NoStr
 pub enum PtpRemoteNegotiateMessageFromUser {
-    Hello(Vec<u8>), // nonce
+    Hello { nonce: Vec<u8>, public_key: Vec<u8> },
 }
 
 #[derive(Clone, PartialEq)]
@@ -14,7 +14,19 @@ pub enum PtpRemoteNegotiateMessageFromUser {
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 /// Message between user and device through NoStr
 pub enum PtpRemoteNegotiateMessageFromDevice {
-    Hello(Vec<u8>, Vec<u8>), // (nonce, session_id)
+    Hello(PtpRemoteNegotiateInfo),
+    BrokerNotSupported,
+    DeviceNotSupported,
+}
+
+#[derive(Clone, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
+pub struct PtpRemoteNegotiateInfo {
+    nonce: Vec<u8>,
+    public_key: Vec<u8>,
+    session_id: Vec<u8>,
+    broker_address: Vec<u8>,
 }
 
 #[derive(Clone, PartialEq)]

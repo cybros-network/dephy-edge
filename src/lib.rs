@@ -4,4 +4,4 @@ pub mod http;
 pub mod mqtt_broker;
 pub mod nostr;
 pub mod preludes;
-mod rings;
+pub mod rings;
