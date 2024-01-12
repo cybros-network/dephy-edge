@@ -1,15 +1,19 @@
 use crate::crypto::*;
 use clap::{Parser, Subcommand};
-use dephy_edge::nostr::default_kind;
 use dephy_edge::{app_main::wait_for_join_set, nostr::default_filter, *};
 use dephy_types::borsh::{from_slice, to_vec};
 use dotenv::dotenv;
 use preludes::*;
 use rand::Fill;
 use rand_core::OsRng;
+use rings_core::message::MessagePayload;
+use rings_node::backend::types::BackendMessage;
+use rings_node::backend::types::MessageHandler;
 use rings_node::provider::Provider;
-use rings_rpc::protos::rings_node::SendBackendMessageRequest;
+use rings_rpc::method::Method;
+use rings_rpc::protos::rings_node::*;
 use rumqttc::{self, AsyncClient, MqttOptions, QoS};
+use std::cell::RefCell;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
@@ -80,7 +84,7 @@ struct SimulateUserContext {
     pub signing_key: SigningKey,
     pub nostr_client: Arc<Client>,
     pub nostr_keys: Keys,
-    pub rings_provider: Arc<Provider>,
+    pub rings_provider: RefCell<Option<Arc<Provider>>>,
     pub target_address: Vec<u8>,
     pub state: Arc<Mutex<SimulateUserState>>,
 }
@@ -107,19 +111,23 @@ async fn simulate_user_main(
         nostr_client.add_relay(r.as_str(), None).await?;
     }
     let nostr_client = Arc::new(nostr_client);
-    let rings_provider = dephy_edge::rings::init_node(&signer, p2p_bootstrap_node_list).await?;
 
     let state = Arc::new(Mutex::new(SimulateUserState::Init));
 
     let ctx = Arc::new(SimulateUserContext {
         cancel_token: cancel_token.clone(),
-        signing_key: signer,
+        signing_key: signer.clone(),
         nostr_client,
         nostr_keys: keys,
-        rings_provider,
+        rings_provider: RefCell::new(None),
         target_address,
         state,
     });
+
+    let rings_handler = UserBackendBehaviour { ctx: None };
+    let rings_provider =
+        dephy_edge::rings::init_node(&signer, p2p_bootstrap_node_list, Box::new(rings_handler))
+            .await?;
 
     let mut js = JoinSet::new();
     js.spawn(user_nostr(ctx.clone()));
@@ -140,6 +148,24 @@ async fn simulate_user_main(
     }
 
     Ok(())
+}
+
+struct UserBackendBehaviour {
+    ctx: RefCell<Option<Arc<SimulateUserContext>>>,
+}
+
+#[async_trait::async_trait]
+impl MessageHandler<BackendMessage> for UserBackendBehaviour {
+    async fn handle_message(
+        &self,
+        _provider: Arc<Provider>,
+        ctx: &MessagePayload,
+        msg: &BackendMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        debug!("Received message: {:?}", msg);
+        debug!("ctx: {:?}", ctx);
+        Ok(())
+    }
 }
 
 async fn user_nostr(ctx: Arc<SimulateUserContext>) -> Result<()> {

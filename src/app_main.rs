@@ -4,6 +4,7 @@ use crate::http::start_http_server;
 use crate::mqtt_broker::mqtt_broker;
 use crate::nostr::{send_signed_message_to_network, start_nostr_context};
 use crate::preludes::*;
+use crate::rings::BackendBehaviour;
 
 use clap::Parser;
 use dotenv::dotenv;
@@ -114,8 +115,13 @@ async fn async_main(
         nostr_client.add_relay(r.as_str(), None).await?;
     }
 
-    let rings_provider =
-        crate::rings::init_node(&signing_key, &opt.p2p_bootstrap_node_list).await?;
+    let rings_handler = BackendBehaviour {};
+    let rings_provider = crate::rings::init_node(
+        &signing_key,
+        &opt.p2p_bootstrap_node_list,
+        Box::new(rings_handler),
+    )
+    .await?;
 
     let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {

@@ -15,9 +15,7 @@ use rings_rpc::method::Method;
 use rings_rpc::protos::rings_node::*;
 use std::time::Duration;
 
-struct BackendBehaviour {
-    pub foo: String,
-}
+pub struct BackendBehaviour {}
 
 #[async_trait]
 impl MessageHandler<BackendMessage> for BackendBehaviour {
@@ -27,7 +25,7 @@ impl MessageHandler<BackendMessage> for BackendBehaviour {
         ctx: &MessagePayload,
         msg: &BackendMessage,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        debug!("{} Received message: {:?}", &self.foo, msg);
+        debug!("Received message: {:?}", msg);
         debug!("ctx: {:?}", ctx);
         Ok(())
     }
@@ -36,6 +34,7 @@ impl MessageHandler<BackendMessage> for BackendBehaviour {
 pub async fn init_node(
     key: &SigningKey,
     p2p_bootstrap_node_list: &Vec<String>,
+    handler: Box<dyn MessageHandler<BackendMessage> + Send + Sync>,
 ) -> Result<Arc<Provider>> {
     let key = key.to_bytes();
     let key: &[u8; 32] = key.as_slice().try_into()?;
@@ -59,12 +58,7 @@ pub async fn init_node(
     );
 
     let provider = Arc::new(Provider::from_processor(processor));
-    let backend = Arc::new(Backend::new(
-        provider.clone(),
-        Box::new(BackendBehaviour {
-            foo: "bar".to_string(),
-        }),
-    ));
+    let backend = Arc::new(Backend::new(provider.clone(), handler));
     provider.set_swarm_callback(backend).unwrap();
     let listening_provider = provider.clone();
     tokio::spawn(async move { listening_provider.listen().await });
