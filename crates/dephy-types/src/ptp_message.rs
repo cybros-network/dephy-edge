@@ -23,10 +23,10 @@ pub enum PtpRemoteNegotiateMessageFromDevice {
 #[cfg_attr(feature = "std", derive(Debug))]
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 pub struct PtpRemoteNegotiateInfo {
-    nonce: Vec<u8>,
-    public_key: Vec<u8>,
-    session_id: Vec<u8>,
-    broker_address: Vec<u8>,
+    pub nonce: Vec<u8>,
+    pub public_key: Vec<u8>,
+    pub session_id: Vec<u8>,
+    pub broker_address: Vec<u8>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -34,8 +34,18 @@ pub struct PtpRemoteNegotiateInfo {
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 /// Message between user and broker
 pub enum PtpUserMessageFromUser {
-    TrySession(Vec<u8>, Vec<u8>),       // (ETH_ADDR, SESSION_ID)
-    Message(Vec<u8>, Vec<u8>, Vec<u8>), // (ETH_ADDR, SESSION_ID, data)
+    TrySession(TrySessionInfo),
+    Message(TrySessionInfo, Vec<u8>), // (TrySessionInfo, data)
+}
+
+#[derive(Clone, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
+/// Message between user and broker
+pub struct TrySessionInfo {
+    pub user_addr: Vec<u8>,
+    pub device_addr: Vec<u8>,
+    pub session_id: Vec<u8>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -43,9 +53,9 @@ pub enum PtpUserMessageFromUser {
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 /// Message between user and broker
 pub enum PtpUserMessageFromBroker {
-    SessionConnected(Vec<u8>, Vec<u8>), // (ETH_ADDR, SESSION_ID)
-    SessionConnLost(Vec<u8>, Vec<u8>),  // (ETH_ADDR, SESSION_ID)
-    Message(Vec<u8>, Vec<u8>, Vec<u8>), // (ETH_ADDR, SESSION_ID, data)
+    SessionConnected(TrySessionInfo), // (ETH_ADDR, SESSION_ID)
+    SessionConnLost(TrySessionInfo),  // (ETH_ADDR, SESSION_ID)
+    Message(TrySessionInfo, Vec<u8>), // (ETH_ADDR, SESSION_ID, data)
 }
 
 #[derive(Clone, PartialEq)]

@@ -4,10 +4,12 @@ use crate::http::start_http_server;
 use crate::mqtt_broker::mqtt_broker;
 use crate::nostr::{send_signed_message_to_network, start_nostr_context};
 use crate::preludes::*;
+use crate::rings::AppRingsProvider;
 use crate::rings::BackendBehaviour;
 
 use clap::Parser;
 use dotenv::dotenv;
+use rings_node::provider::Provider;
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::task::JoinSet;
@@ -19,7 +21,7 @@ pub fn app_main() -> Result<()> {
     let opt = CliOpt::parse();
 
     let signing_key = parse_signing_key(opt.priv_key.as_str())?;
-    let verifying_key = signing_key.verifying_key().clone();
+    let verifying_key = *signing_key.verifying_key();
     let eth_addr_bytes = get_eth_address_bytes(&verifying_key);
     let eth_addr = format!("0x{}", hex::encode(&eth_addr_bytes));
     info!("My address: {}", &eth_addr);
@@ -116,12 +118,9 @@ async fn async_main(
     }
 
     let rings_handler = BackendBehaviour {};
-    let rings_provider = crate::rings::init_node(
-        &signing_key,
-        &opt.p2p_bootstrap_node_list,
-        Box::new(rings_handler),
-    )
-    .await?;
+    let rings_provider = Provider::create(&signing_key).await?;
+    let p_move = rings_provider.clone();
+    p_move.init(&opt.p2p_bootstrap_node_list, Arc::new(rings_handler))?;
 
     let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {
@@ -139,7 +138,7 @@ async fn async_main(
     let mut js = JoinSet::new();
 
     js.spawn(mqtt_broker(ctx.clone(), mqtt_rx, cancel_token.clone()));
-    if *&ctx.opt.no_mqtt_server {
+    if ctx.opt.no_mqtt_server {
         info!("Not starting HTTP server due to --no-http-server")
     } else {
         js.spawn(start_http_server(ctx.clone()));
@@ -149,7 +148,7 @@ async fn async_main(
         ctx.clone(),
         cancel_token.clone(),
         nostr_sender_rx,
-        keys.clone(),
+        keys,
     ));
 
     tokio::select! {
@@ -178,7 +177,7 @@ pub async fn wait_for_join_set(
         let e: Option<Error> = match res {
             Ok(e) => {
                 if let Err(e) = e {
-                    Some(e.into())
+                    Some(e)
                 } else {
                     None
                 }
@@ -187,7 +186,7 @@ pub async fn wait_for_join_set(
         };
         if let Some(e) = e {
             error!("async_main: {:?}", &e);
-            return Err(e.into());
+            return Err(e);
         }
     }
     Ok(())
