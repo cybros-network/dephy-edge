@@ -98,8 +98,6 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
         bail!("Message to bad channel from {}", &target)
     }
 
-    info!("111111 {}", &target);
-
     let msg = from_slice::<PtpLocalMessageFromDevice>(raw.payload.as_slice())?;
 
     match msg {

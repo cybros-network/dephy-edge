@@ -54,7 +54,10 @@ async fn main() -> Result<()> {
             let priv_key = k256::SecretKey::random(&mut OsRng);
             let priv_key = priv_key.as_scalar_primitive();
             let priv_key = priv_key.to_string().to_lowercase();
-            println!("RUST_LOG=dephy_edge={},rumqttd::*=off", log_level);
+            println!(
+                "RUST_LOG=dephy_p2p_debug={},dephy_edge={},rumqttd::*=off",
+                log_level, log_level
+            );
             println!("DEPHY_PRIV_KEY={}", priv_key);
         }
         Command::FakeMessage {

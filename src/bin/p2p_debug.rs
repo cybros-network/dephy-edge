@@ -417,14 +417,13 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                     device_addr: to_address.clone(),
                                     session_id: info.session_id.clone(),
                                 });
+                                let to = format!("0x{}", hex::encode(info.broker_address.clone()));
+                                info!("Sending TrySession to {}: {:?}", &to, &payload);
                                 rings_provider
                                     .request(
                                         Method::SendCustomMessage,
                                         SendCustomMessageRequest {
-                                            destination_did: format!(
-                                                "0x{}",
-                                                hex::encode(info.broker_address.clone())
-                                            ),
+                                            destination_did: to,
                                             data: to_vec(&payload)?.to_base58(),
                                         },
                                     )

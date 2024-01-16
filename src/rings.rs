@@ -54,7 +54,7 @@ pub trait AppRingsProvider {
 
 #[async_trait]
 impl AppRingsProvider for Provider {
-    async fn create<'a>(key: &'a SigningKey) -> Result<Arc<Self>> {
+    async fn create(key: &SigningKey) -> Result<Arc<Self>> {
         let key = key.to_bytes();
         let key: &[u8; 32] = key.as_slice().try_into()?;
         let key = libsecp256k1::SecretKey::parse(key)?;
