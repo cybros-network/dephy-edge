@@ -62,20 +62,12 @@ pub enum PtpUserMessageFromBroker {
 #[cfg_attr(feature = "std", derive(Debug))]
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 /// Message between broker and device
-pub enum PtpLocalMessage {
-    FromDevice(PtpLocalMessageFromDevice),
-    FromBroker(PtpLocalMessageFromBroker),
-}
-
-#[derive(Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
-#[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
-/// Message between broker and device
 pub enum PtpLocalMessageFromDevice {
-    Hello(Vec<u8>),            // nonce, the nonce should be changed during a connection
-    Keepalive(Vec<u8>),        // SESSION_ID
-    MeVoila(Vec<u8>),          // nonce
-    Message(Vec<u8>, Vec<u8>), // (TO_ADDR, data)
+    Hello,
+    Keepalive,
+    ShouldAuthorizeUser(Vec<u8>),        // user_addr
+    MeVoila(Vec<u8>),                    // session_id
+    ShouldSendMessage(Vec<u8>, Vec<u8>), // (user_addr, data)
 }
 
 #[derive(Clone, PartialEq)]
@@ -83,8 +75,8 @@ pub enum PtpLocalMessageFromDevice {
 #[cfg_attr(feature = "derive", derive(BorshSerialize, BorshDeserialize))]
 /// Message between broker and device
 pub enum PtpLocalMessageFromBroker {
-    Hello(Vec<u8>, Vec<u8>), // (nonce, SESSION_ID)
+    Hello(Vec<u8>), // SESSION_ID
     Keepalive,
-    AreYouThere(Vec<u8>, Vec<u8>), // (FROM_ADDR, nonce)
-    Message(Vec<u8>, Vec<u8>),     // (FROM_ADDR, data)
+    AreYouThere(Vec<u8>, Vec<u8>),          // (user_addr, session_id)
+    ShouldReceiveMessage(Vec<u8>, Vec<u8>), // (user_addr, data)
 }

@@ -13,6 +13,7 @@ pub use primitive_types::{U128, U256};
 pub use prost::Message;
 pub use rumqttd::local::{LinkRx, LinkTx};
 pub use rumqttd::Broker;
+use std::collections::HashMap;
 pub use std::str::FromStr;
 pub use std::sync::Arc;
 pub use tokio::sync::{mpsc, Mutex};
@@ -57,4 +58,7 @@ pub struct AppContext {
     pub nostr_client: Arc<Client>,
     pub nostr_tx: mpsc::UnboundedSender<SignedMessage>,
     pub rings_provider: Arc<Provider>,
+    pub device_addr_to_session_id_map: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+    pub session_id_to_device_map: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+    pub user_addr_and_session_id_authorized_map: Arc<Mutex<HashMap<(Vec<u8>, Vec<u8>), bool>>>,
 }

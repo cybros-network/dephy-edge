@@ -76,6 +76,7 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
         }
 
         if !c_dephy || edge.is_none() || from.is_none() || to.is_none() {
+            debug!("bad marker");
             return Ok(());
         }
 
@@ -85,6 +86,7 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
 
         let curr_addr = &ctx.eth_addr_bytes;
         if edge.eq(curr_addr) {
+            debug!("edge.eq(curr_addr)");
             return Ok(());
         }
 
@@ -92,10 +94,12 @@ async fn handle_notification(ctx: Arc<AppContext>, n: RelayPoolNotification) -> 
         let (mut signed, raw) = check_message(content.as_slice())?;
 
         if *&signed.last_edge_addr.is_none() {
+            debug!("*&signed.last_edge_addr.is_none()");
             return Ok(());
         }
 
         if from.ne(&raw.from_address) || to.ne(&raw.to_address) {
+            debug!("from==to");
             return Ok(());
         }
 

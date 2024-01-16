@@ -17,9 +17,6 @@ use std::time::Duration;
 
 pub struct BackendBehaviour {}
 
-//unsafe impl Sync for BackendBehaviour {}
-//unsafe impl Send for BackendBehaviour {}
-
 #[async_trait]
 impl SwarmCallback for BackendBehaviour {
     async fn on_inbound(&self, payload: &MessagePayload) -> Result<(), Box<dyn std::error::Error>> {

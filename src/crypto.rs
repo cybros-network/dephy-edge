@@ -198,7 +198,7 @@ impl DephySigningKey for SigningKey {
         let raw_msg = RawMessage {
             channel,
             timestamp,
-            from_address,
+            from_address: from_address.clone(),
             to_address,
             encrypted: encr_target.is_some(),
             payload,
@@ -220,7 +220,7 @@ impl DephySigningKey for SigningKey {
                 hash: raw_hash.to_vec(),
                 nonce: timestamp,
                 signature: sign_bytes,
-                last_edge_addr: None,
+                last_edge_addr: Some(from_address),
             },
             raw_msg,
         ))
@@ -250,7 +250,7 @@ impl DephySigningKey for SigningKey {
             ),
             Tag::Generic(
                 TagKind::Custom("dephy_edge".to_string()),
-                vec![format!("did:dephy:{}", hex::encode(&raw.from_address))],
+                vec![format!("did:dephy:0x{}", hex::encode(&raw.from_address))],
             ),
         ];
         let ret = EventBuilder::new(default_kind(), content, tags.as_slice()).to_event(keys)?;

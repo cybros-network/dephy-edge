@@ -15,8 +15,11 @@ use rings_core::swarm::callback::SwarmEvent;
 use rings_node::provider::Provider;
 use rings_rpc::method::Method;
 use rings_rpc::protos::rings_node::SendCustomMessageRequest;
-use rumqttc::{self, AsyncClient, MqttOptions, QoS};
+use rumqttc::{self, AsyncClient, MqttOptions, Publish, QoS};
+use rumqttc::{Event, Incoming};
+use std::collections::HashMap;
 use std::time::Duration;
+use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
@@ -42,7 +45,12 @@ enum Command {
     SimulateDevice {
         #[clap(short = 'k', long, env = "P2P_DEBUG_PRIV_KEY_DEVICE")]
         priv_key: Option<String>,
-        #[arg(short, long, env, default_value = "mqtt://127.0.0.1:1883")]
+        #[arg(
+            short,
+            long,
+            env,
+            default_value = "mqtt://127.0.0.1:1883?client_id={client_id}"
+        )]
         mqtt_address: String,
     },
 }
@@ -234,7 +242,7 @@ async fn user_nostr(ctx: Arc<SimulateUserContext>) -> Result<()> {
                 if cancel_token.is_cancelled() {
                     return Ok(true);
                 }
-                let _ = tokio::spawn(user_wrap_handle_notification(ctx, n));
+                tokio::spawn(user_wrap_handle_notification(ctx, n));
                 Ok(false)
             }
         })
@@ -295,10 +303,10 @@ async fn user_handle_notification(
                 .await?;
             }
             PtpRemoteNegotiateMessageFromDevice::BrokerNotSupported => {
-                bail!("The Broker to which the device connected doesn't support P2P connection.")
+                error!("The Broker to which the device connected doesn't support P2P connection.")
             }
             PtpRemoteNegotiateMessageFromDevice::DeviceNotSupported => {
-                bail!("The device doesn't support P2P connection.")
+                error!("The device doesn't support P2P connection.")
             }
         }
     }
@@ -409,7 +417,7 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                     device_addr: to_address.clone(),
                                     session_id: info.session_id.clone(),
                                 });
-                                let _ = rings_provider
+                                rings_provider
                                     .request(
                                         Method::SendCustomMessage,
                                         SendCustomMessageRequest {
@@ -420,7 +428,7 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                             data: to_vec(&payload)?.to_base58(),
                                         },
                                     )
-                                    .await;
+                                    .await?;
                                 info!("TrySession sent, waiting for response.");
 
                                 tick += 1;
@@ -482,7 +490,348 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
     Ok(())
 }
 
+struct SimulateDeviceContext {
+    pub cancel_token: CancellationToken,
+    pub signing_key: SigningKey,
+    pub mqtt_client: AsyncClient,
+    pub topic_receiver: String,
+    pub topic_p2p: String,
+    pub nonce_seen_map: Arc<Mutex<HashMap<Vec<u8>, bool>>>,
+    pub user_to_nonce_map: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+    pub user_authorized_map: Arc<Mutex<HashMap<Vec<u8>, bool>>>,
+    pub session_id: Arc<Mutex<Option<Vec<u8>>>>,
+    pub broker_addr: Arc<Mutex<Option<Vec<u8>>>>,
+}
+
 async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<()> {
-    //    MqttOptions::parse_url(url)
+    let cancel_token = CancellationToken::new();
+
+    let mut mqtt_client =
+        MqttOptions::parse_url(mqtt_address.replace("{client_id}", &signer.eth_addr_string()))?;
+    mqtt_client.set_keep_alive(Duration::from_secs(5));
+    let (mqtt_client, mut mqtt_loop) = AsyncClient::new(mqtt_client.clone(), 16);
+
+    let topic_receiver = format!("/dephy/to/0x{}", signer.eth_addr_string());
+    let topic_p2p = format!("{}0x{}", DEPHY_P2P_TOPIC_PREFIX, signer.eth_addr_string());
+
+    let ctx = Arc::new(SimulateDeviceContext {
+        cancel_token: cancel_token.clone(),
+        signing_key: signer.clone(),
+        mqtt_client: mqtt_client.clone(),
+        topic_receiver: topic_receiver.clone(),
+        topic_p2p: topic_p2p.clone(),
+        nonce_seen_map: Arc::new(Mutex::new(HashMap::new())),
+        user_to_nonce_map: Arc::new(Mutex::new(HashMap::new())),
+        user_authorized_map: Arc::new(Mutex::new(HashMap::new())),
+        session_id: Arc::new(Mutex::new(None)),
+        broker_addr: Arc::new(Mutex::new(None)),
+    });
+
+    mqtt_client
+        .subscribe(topic_receiver.as_str(), QoS::AtMostOnce)
+        .await?;
+    mqtt_client
+        .subscribe(topic_p2p.as_str(), QoS::AtMostOnce)
+        .await?;
+
+    let mut js = JoinSet::new();
+
+    let init_barrier = Arc::new(Barrier::new(2));
+
+    let ctx_move = ctx.clone();
+    let ib_move = init_barrier.clone();
+    js.spawn(async move {
+        let ctx = ctx_move.clone();
+
+        let cancel_token = ctx.cancel_token.clone();
+        let topic_receiver = ctx.topic_receiver.as_str();
+        let topic_p2p = ctx.topic_p2p.as_str();
+        let mqtt_client = ctx.mqtt_client.clone();
+        loop {
+            if cancel_token.is_cancelled() {
+                break;
+            }
+            let notification = mqtt_loop.poll().await.unwrap();
+            match notification {
+                Event::Incoming(notification) => match notification {
+                    Incoming::ConnAck(c) => {
+                        info!("Connected to MQTT broker.");
+                    }
+                    Incoming::Publish(p) => {
+                        let topic = p.topic.as_str();
+                        if topic == topic_receiver {
+                            let ib = ib_move.clone();
+                            ib.wait().await;
+                            let ctx = ctx.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = device_topic_receiver_handler(ctx, p).await {
+                                    warn!("device_topic_receiver_handler: {:?}", e)
+                                }
+                            });
+                        } else if topic == topic_p2p {
+                            let ctx = ctx.clone();
+                            let ib_move = ib_move.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = device_topic_p2p_handler(ctx, p, ib_move).await {
+                                    warn!("device_topic_p2p_handler: {:?}", e)
+                                }
+                            });
+                        }
+                    }
+                    Incoming::Subscribe(s) => {
+                        info!("MQTT subscription: {:?}", s);
+                    }
+                    _ => {}
+                },
+                Event::Outgoing(_) => {}
+            }
+        }
+        Ok::<(), anyhow::Error>(())
+    });
+
+    let ctx_move = ctx.clone();
+    tokio::spawn(async move {
+        let ctx = ctx_move;
+        let signer = ctx.signing_key.clone();
+        let mqtt_client = ctx.mqtt_client.clone();
+        let topic_p2p = ctx.topic_p2p.as_str();
+
+        let (msg, _) = signer
+            .create_message(
+                MessageChannel::TunnelNegotiate,
+                to_vec(&PtpLocalMessageFromDevice::Hello)?.to_vec(),
+                None,
+                None,
+            )
+            .await?;
+        mqtt_client
+            .publish_bytes(topic_p2p, QoS::AtMostOnce, false, to_vec(&msg)?.into())
+            .await?;
+
+        info!("Hello sent to broker.");
+
+        Ok::<(), anyhow::Error>(())
+    });
+
+    tokio::select! {
+        _ = cancel_token.cancelled() => {
+            info!("Exiting...")
+        }
+        ret = wait_for_join_set(js, cancel_token.clone()) => {
+            if let Err(e) = ret {
+                error!("wait_for_join_set: {:?}", e)
+            }
+        }
+        ret = tokio::signal::ctrl_c() => {
+            cancel_token.clone().cancel();
+            if let Err(e) = ret {
+                error!("ctrl_c: {:?}", e)
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn device_topic_p2p_handler(
+    ctx: Arc<SimulateDeviceContext>,
+    p: Publish,
+    barrier: Arc<Barrier>,
+) -> Result<()> {
+    let mqtt_broker = ctx.mqtt_client.clone();
+    let topic = ctx.topic_p2p.as_str();
+    let signer = ctx.signing_key.clone();
+    let session_id = ctx.session_id.clone();
+    let broker_addr = ctx.broker_addr.clone();
+    let user_authorized_map = ctx.user_authorized_map.clone();
+
+    let (_, msg) = check_message(p.payload.as_ref())?;
+    let payload = from_slice::<PtpLocalMessageFromBroker>(msg.payload.as_slice())?;
+    match payload {
+        PtpLocalMessageFromBroker::Hello(session_id_new) => {
+            info!(
+                "Hello received from 0x{}, session_id: 0x{}",
+                hex::encode(&msg.from_address),
+                hex::encode(&session_id_new)
+            );
+            *session_id.lock().await = Some(session_id_new);
+            *broker_addr.lock().await = Some(msg.from_address.clone());
+            barrier.wait().await;
+        }
+        PtpLocalMessageFromBroker::Keepalive => {
+            if session_id.lock().await.is_none() {
+                bail!("Keepalive received before Hello.")
+            }
+            if broker_addr.lock().await.is_none() {
+                bail!("Keepalive received before Hello.")
+            }
+            let (msg, _) = signer
+                .create_message(
+                    MessageChannel::TunnelNegotiate,
+                    to_vec(&PtpLocalMessageFromDevice::Keepalive)?.to_vec(),
+                    broker_addr.lock().await.clone(),
+                    None,
+                )
+                .await?;
+            mqtt_broker
+                .publish_bytes(topic, QoS::AtMostOnce, false, to_vec(&msg)?.into())
+                .await?;
+        }
+        PtpLocalMessageFromBroker::AreYouThere(user_addr, session_id_new) => {
+            if session_id.lock().await.is_none() {
+                bail!("Keepalive received before Hello.")
+            }
+            if broker_addr.lock().await.is_none() {
+                bail!("Keepalive received before Hello.")
+            }
+            user_authorized_map
+                .lock()
+                .await
+                .insert(user_addr.clone(), true);
+            let (msg, _) = signer
+                .create_message(
+                    MessageChannel::TunnelNegotiate,
+                    to_vec(&PtpLocalMessageFromDevice::MeVoila(session_id_new))?.to_vec(),
+                    broker_addr.lock().await.clone(),
+                    None,
+                )
+                .await?;
+            mqtt_broker
+                .publish_bytes(topic, QoS::AtMostOnce, false, to_vec(&msg)?.into())
+                .await?;
+            info!("Broker authorized user: 0x{}", hex::encode(&user_addr));
+        }
+        PtpLocalMessageFromBroker::ShouldReceiveMessage(user_addr, payload) => {
+            info!(
+                "ShouldReceiveMessage received from 0x{}, payload: 0x{}",
+                hex::encode(&user_addr),
+                hex::encode(&payload)
+            );
+        }
+    }
+    Ok(())
+}
+
+async fn device_topic_receiver_handler(ctx: Arc<SimulateDeviceContext>, p: Publish) -> Result<()> {
+    // let mqtt_broker = ctx.mqtt_client.clone();
+
+    let (_, msg) = check_message(p.payload.as_ref())?;
+    let payload = from_slice::<PtpRemoteNegotiateMessageFromUser>(msg.payload.as_slice())?;
+    match payload {
+        PtpRemoteNegotiateMessageFromUser::Hello {
+            ref nonce,
+            ref public_key,
+        } => {
+            let nonce_seen_map = ctx.nonce_seen_map.clone();
+            if nonce_seen_map.lock().await.get(nonce).is_some() {
+                warn!("Nonce seen, ignore.");
+                return Ok(());
+            }
+            nonce_seen_map.lock().await.insert(nonce.clone(), true);
+
+            let verifier = VerifyingKey::from_encoded_point(&k256::EncodedPoint::from_bytes(
+                public_key.as_slice(),
+            )?)?;
+            let user_addr = get_eth_address_bytes(&verifier);
+            if msg.from_address.ne(&user_addr) {
+                bail!("Public key doesn't match with the address.")
+            }
+
+            let user_to_nonce_map = ctx.user_to_nonce_map.clone();
+            let user_authorized_map = ctx.user_authorized_map.clone();
+            let mqtt_client = ctx.mqtt_client.clone();
+            let signer = ctx.signing_key.clone();
+            let user_addr = user_addr.to_vec();
+
+            let barrier = Arc::new(Barrier::new(2));
+
+            let barrier_move = barrier.clone();
+            let mqtt_client_move = mqtt_client.clone();
+            let signer_move = signer.clone();
+            let user_addr_move = user_addr.clone();
+            let user_authorized_map_move = user_authorized_map.clone();
+            let topic_p2p_move = ctx.topic_p2p.clone();
+            tokio::spawn(async move {
+                let barrier = barrier_move.clone();
+                let mqtt_client = mqtt_client_move;
+
+                if let Err(e) = async move {
+                    // todo: need to drop if timed out
+                    info!("trying to acquire session from broker...");
+                    let (msg, _) = signer_move
+                        .create_message(
+                            MessageChannel::TunnelNegotiate,
+                            to_vec(&PtpLocalMessageFromDevice::ShouldAuthorizeUser(
+                                user_addr_move.clone(),
+                            ))?,
+                            None,
+                            None,
+                        )
+                        .await?;
+
+                    mqtt_client
+                        .publish_bytes(topic_p2p_move, QoS::AtMostOnce, false, to_vec(&msg)?.into())
+                        .await?;
+                    loop {
+                        sleep(Duration::from_millis(500)).await;
+                        if let Some(a) = user_authorized_map_move.lock().await.get(&user_addr_move)
+                        {
+                            if *a {
+                                break;
+                            }
+                        }
+                    }
+                    barrier_move.wait().await;
+                    Ok::<(), anyhow::Error>(())
+                }
+                .await
+                {
+                    barrier.wait().await;
+                    warn!("acquire_session: {:?}", e);
+                }
+            });
+            barrier.wait().await;
+
+            let session_id = ctx.session_id.clone();
+            let session_id = session_id
+                .lock()
+                .await
+                .clone()
+                .ok_or(anyhow!("No session_id."))?;
+            let broker_addr = ctx.broker_addr.clone();
+            let broker_addr = broker_addr
+                .lock()
+                .await
+                .clone()
+                .ok_or(anyhow!("No broker_addr."))?;
+
+            let payload = to_vec(&PtpRemoteNegotiateMessageFromDevice::Hello(
+                PtpRemoteNegotiateInfo {
+                    nonce: nonce.clone(),
+                    public_key: signer.public_key().to_sec1_bytes().to_vec(),
+                    session_id: session_id.clone(),
+                    broker_address: broker_addr.clone(),
+                },
+            ))?;
+            let (payload, _) = signer
+                .create_message(
+                    MessageChannel::TunnelNegotiate,
+                    payload,
+                    Some(broker_addr),
+                    None,
+                )
+                .await?;
+            let payload = to_vec(&payload)?;
+            mqtt_client
+                .publish_bytes(DEPHY_TOPIC, QoS::AtMostOnce, false, payload.into())
+                .await?;
+
+            user_to_nonce_map
+                .lock()
+                .await
+                .insert(user_addr.clone(), nonce.clone());
+        }
+    }
+
     Ok(())
 }

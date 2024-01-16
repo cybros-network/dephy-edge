@@ -133,6 +133,9 @@ async fn async_main(
         nostr_client: nostr_client.clone(),
         nostr_tx,
         rings_provider,
+        device_addr_to_session_id_map: Arc::new(Default::default()),
+        session_id_to_device_map: Arc::new(Default::default()),
+        user_addr_and_session_id_authorized_map: Arc::new(Default::default()),
     });
 
     let mut js = JoinSet::new();
