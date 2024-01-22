@@ -1,31 +1,38 @@
 use crate::preludes::*;
 use async_trait::async_trait;
+use dephy_types::borsh::{from_slice, to_vec};
 use rings_core::dht::Did;
 use rings_core::ecc::SecretKey as RingsSecretKey;
 use rings_core::message::Message;
 use rings_core::message::MessagePayload;
 use rings_core::session::SessionSkBuilder;
-use rings_core::storage::PersistenceStorage;
+use rings_core::storage::MemStorage;
 use rings_core::swarm::callback::SwarmCallback;
 use rings_core::swarm::callback::SwarmEvent;
+use rings_node::backend::types::BackendMessage;
 use rings_node::processor::ProcessorBuilder;
 use rings_node::processor::ProcessorConfig;
 use rings_node::provider::Provider;
 use rings_rpc::method::Method;
+use rings_rpc::method::Method::SendBackendMessage;
 use rings_rpc::protos::rings_node::*;
 use std::time::Duration;
 
-pub struct BackendBehaviour {}
+pub struct BackendBehaviour {
+    pub provider: Arc<Provider>,
+    pub ctx: Arc<AppContext>,
+}
 
 #[async_trait]
 impl SwarmCallback for BackendBehaviour {
     async fn on_inbound(&self, payload: &MessagePayload) -> Result<(), Box<dyn std::error::Error>> {
         let msg: Message = payload.transaction.data()?;
-        match msg {
-            Message::CustomMessage(msg) => {
-                info!("{:?}", String::from_utf8_lossy(msg.0.as_slice()));
-            }
-            _ => {}
+        if let Message::CustomMessage(msg) = msg {
+            let msg: BackendMessage = bincode::deserialize(msg.0.as_slice())?;
+            if let BackendMessage::Extension(msg) = msg {
+                let msg = from_slice::<PtpUserMessageFromUser>(msg.as_ref())?;
+                self.ctx.clone().handle_message_from_user(msg).await?;
+            };
         }
         Ok(())
     }
@@ -68,8 +75,7 @@ impl AppRingsProvider for Provider {
         let sk = skb.build()?;
 
         let config = ProcessorConfig::new("stun://stun.l.google.com:19302".to_string(), sk, 3);
-        let storage = PersistenceStorage::random_path("./tmp");
-        let storage = PersistenceStorage::new_with_path(storage.as_str()).await?;
+        let storage = Box::new(MemStorage::new());
         let processor = Arc::new(
             ProcessorBuilder::from_config(&config)?
                 .storage(storage)
@@ -120,6 +126,112 @@ impl AppRingsProvider for Provider {
                 }
             });
         }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+pub trait ToRingsDIDString {
+    fn to_did_string(&self) -> String;
+}
+
+#[async_trait]
+impl ToRingsDIDString for Vec<u8> {
+    fn to_did_string(&self) -> String {
+        format!("0x{}", hex::encode(self))
+    }
+}
+
+#[async_trait]
+pub trait AppRingsHandler {
+    async fn handle_message_from_user(self: Arc<Self>, msg: PtpUserMessageFromUser) -> Result<()>;
+    async fn send_rings_message(
+        self: Arc<Self>,
+        to: String,
+        msg: &PtpUserMessageFromBroker,
+    ) -> Result<()>;
+    // async fn
+}
+
+#[async_trait]
+impl AppRingsHandler for AppContext {
+    async fn handle_message_from_user(self: Arc<Self>, msg: PtpUserMessageFromUser) -> Result<()> {
+        match msg {
+            PtpUserMessageFromUser::TrySession(info) => {
+                let authorized_map = self.user_addr_and_session_id_authorized_map.clone();
+                let session_id_to_device_map = self.session_id_to_device_map.clone();
+                let device_addr_to_session_id_map = self.device_addr_to_session_id_map.clone();
+
+                if let Some(result) = authorized_map
+                    .lock()
+                    .await
+                    .get(&(info.user_addr.clone(), info.session_id.clone()))
+                {
+                    if *result {
+                        let payload = PtpUserMessageFromBroker::SessionConnected(info.clone());
+                        self.send_rings_message(info.user_addr.to_did_string(), &payload)
+                            .await?;
+                        return Ok(());
+                    }
+                    if let Some(val) = session_id_to_device_map.lock().await.get(&info.session_id) {
+                        if val.ne(&info.device_addr) {
+                            warn!("session_id and device_addr mismatch");
+                            return Ok(());
+                        }
+                        if let Some(val) = device_addr_to_session_id_map
+                            .lock()
+                            .await
+                            .get(&info.device_addr)
+                        {
+                            if val.ne(&info.session_id) {
+                                warn!("device_addr and session_id mismatch");
+                                return Ok(());
+                            }
+                        }
+                        self.send_rings_message(
+                            info.user_addr.to_did_string(),
+                            &PtpUserMessageFromBroker::SessionConnected(info.clone()),
+                        )
+                        .await?;
+                    }
+                };
+            }
+            PtpUserMessageFromUser::Message(info, payload) => {
+                let mqtt_tx = self.mqtt_tx.clone();
+                let signer = self.signing_key.clone();
+
+                let payload =
+                    PtpLocalMessageFromBroker::ShouldReceiveMessage(info.user_addr, payload);
+                let (payload, _) = signer
+                    .create_message(
+                        MessageChannel::TunnelNegotiate,
+                        to_vec(&payload)?,
+                        Some(info.device_addr.clone()),
+                        None,
+                    )
+                    .await?;
+                mqtt_tx.lock().await.publish(
+                    format!(
+                        "{}0x{}",
+                        DEPHY_P2P_TOPIC_PREFIX,
+                        hex::encode(&info.device_addr)
+                    ),
+                    to_vec(&payload)?,
+                )?;
+            }
+        }
+        Ok(())
+    }
+    async fn send_rings_message(
+        self: Arc<Self>,
+        to: String,
+        msg: &PtpUserMessageFromBroker,
+    ) -> Result<()> {
+        let provider = self.rings_provider.clone();
+        let msg = BackendMessage::Extension(to_vec(msg)?.into());
+        let msg = msg.into_send_backend_message_request(to)?;
+        provider.request(SendBackendMessage, msg).await?;
 
         Ok(())
     }

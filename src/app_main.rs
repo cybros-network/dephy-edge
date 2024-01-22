@@ -117,14 +117,11 @@ async fn async_main(
         nostr_client.add_relay(r.as_str(), None).await?;
     }
 
-    let rings_handler = BackendBehaviour {};
     let rings_provider = Provider::create(&signing_key).await?;
     let p_move = rings_provider.clone();
-    p_move.init(&opt.p2p_bootstrap_node_list, Arc::new(rings_handler))?;
-
     let nostr_client = Arc::new(nostr_client);
     let ctx = Arc::new(AppContext {
-        opt,
+        opt: opt.clone(),
         signing_key,
         verifying_key,
         eth_addr: format!("0x{}", hex::encode(&eth_addr_bytes)),
@@ -132,11 +129,18 @@ async fn async_main(
         mqtt_tx: mqtt_tx.clone(),
         nostr_client: nostr_client.clone(),
         nostr_tx,
-        rings_provider,
+        rings_provider: rings_provider.clone(),
+        // todo: session timeout
         device_addr_to_session_id_map: Arc::new(Default::default()),
         session_id_to_device_map: Arc::new(Default::default()),
         user_addr_and_session_id_authorized_map: Arc::new(Default::default()),
     });
+
+    let rings_handler = BackendBehaviour {
+        provider: rings_provider,
+        ctx: ctx.clone(),
+    };
+    p_move.init(&opt.p2p_bootstrap_node_list, Arc::new(rings_handler))?;
 
     let mut js = JoinSet::new();
 

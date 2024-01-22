@@ -5,6 +5,7 @@ use rand_core::OsRng;
 use rumqttd::local::LinkRx;
 use tokio_util::sync::CancellationToken;
 
+use crate::rings::{AppRingsHandler, ToRingsDIDString};
 use crate::{crypto::check_message, preludes::*};
 
 pub async fn mqtt_broker(
@@ -64,7 +65,7 @@ async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
             hex::encode(last_edge_addr.as_slice()),
             hex::encode(&ctx.eth_addr_bytes)
         );
-        if last_edge_addr.as_slice() == &ctx.eth_addr_bytes {
+        if last_edge_addr.as_slice() == ctx.eth_addr_bytes {
             return Ok(());
         }
     }
@@ -155,13 +156,57 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
             user_addr_and_session_id_authorized_map
                 .lock()
                 .await
-                .insert((user_addr, session_id), true);
+                .insert((user_addr, session_id.clone()), true);
+            device_addr_to_session_id_map
+                .lock()
+                .await
+                .insert(device_addr.clone(), session_id.clone());
+            session_id_to_device_map
+                .lock()
+                .await
+                .insert(session_id, device_addr);
+            // todo: add timeout
             info!("Responsed Hello to 0x{}", target);
         }
         PtpLocalMessageFromDevice::MeVoila(_) => {
             // todo: maintain session
         }
-        PtpLocalMessageFromDevice::ShouldSendMessage(_, _) => {}
+        PtpLocalMessageFromDevice::ShouldSendMessage(user_addr, payload) => {
+            if let Some(session_id) = device_addr_to_session_id_map.lock().await.get(&device_addr) {
+                if let Some(result) = user_addr_and_session_id_authorized_map
+                    .lock()
+                    .await
+                    .get(&(user_addr.clone(), session_id.clone()))
+                {
+                    if !*result {
+                        warn!(
+                            "Unauthorized user_addr 0x{} to device_addr 0x{}",
+                            hex::encode(&user_addr),
+                            hex::encode(&target)
+                        );
+                        return Ok(());
+                    }
+                    ctx.send_rings_message(
+                        user_addr.to_did_string(),
+                        &PtpUserMessageFromBroker::Message(
+                            TrySessionInfo {
+                                user_addr,
+                                device_addr,
+                                session_id: session_id.clone(),
+                            },
+                            payload,
+                        ),
+                    )
+                    .await?;
+                } else {
+                    warn!("No result for user_addr 0x{}", hex::encode(&user_addr));
+                    return Ok(());
+                }
+            } else {
+                warn!("No session_id for device_addr {}", &target);
+                return Ok(());
+            }
+        }
     }
 
     Ok(())

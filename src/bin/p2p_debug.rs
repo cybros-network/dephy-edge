@@ -8,13 +8,12 @@ use dotenv::dotenv;
 use preludes::*;
 use rand::Fill;
 use rand_core::OsRng;
-use rings_core::message::Message as RingsMessage;
 use rings_core::message::MessagePayload;
 use rings_core::swarm::callback::SwarmCallback;
 use rings_core::swarm::callback::SwarmEvent;
+use rings_node::backend::types::BackendMessage;
 use rings_node::provider::Provider;
 use rings_rpc::method::Method;
-use rings_rpc::protos::rings_node::SendCustomMessageRequest;
 use rumqttc::{self, AsyncClient, MqttOptions, Publish, QoS};
 use rumqttc::{Event, Incoming};
 use std::collections::HashMap;
@@ -206,11 +205,35 @@ struct UserBackendBehaviour {
 impl SwarmCallback for UserBackendBehaviour {
     async fn on_inbound(&self, payload: &MessagePayload) -> Result<(), Box<dyn std::error::Error>> {
         let msg: rings_core::message::Message = payload.transaction.data()?;
-        match msg {
-            rings_core::message::Message::CustomMessage(msg) => {
-                info!("{:?}", String::from_utf8_lossy(msg.0.as_slice()));
-            }
-            _ => {}
+        if let rings_core::message::Message::CustomMessage(msg) = msg {
+            let msg: BackendMessage = bincode::deserialize(msg.0.as_slice())?;
+            if let BackendMessage::Extension(msg) = msg {
+                let msg = from_slice::<PtpUserMessageFromBroker>(msg.as_ref())?;
+                match msg {
+                    PtpUserMessageFromBroker::SessionConnected(_) => {
+                        self.ctx
+                            .clone()
+                            .tx
+                            .send(UserChannelPayload::StateChanged(
+                                SimulateUserState::Connected,
+                            ))
+                            .await?;
+                    }
+                    PtpUserMessageFromBroker::SessionConnLost(_) => {
+                        // todo
+                    }
+                    PtpUserMessageFromBroker::Message(info, payload) => {
+                        // todo: check info
+                        let n = from_slice::<u64>(&payload)?;
+                        info!(
+                            "Message received from 0x{}, payload: 0x{}(parsed u64: {})",
+                            hex::encode(&info.device_addr),
+                            hex::encode(&payload),
+                            n
+                        );
+                    }
+                }
+            };
         }
         Ok(())
     }
@@ -419,14 +442,10 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                 });
                                 let to = format!("0x{}", hex::encode(info.broker_address.clone()));
                                 info!("Sending TrySession to {}: {:?}", &to, &payload);
+                                let msg = BackendMessage::Extension(to_vec(&payload)?.into());
+                                let msg = msg.into_send_backend_message_request(to)?;
                                 rings_provider
-                                    .request(
-                                        Method::SendCustomMessage,
-                                        SendCustomMessageRequest {
-                                            destination_did: to,
-                                            data: to_vec(&payload)?.to_base58(),
-                                        },
-                                    )
+                                    .request(Method::SendBackendMessage, msg)
                                     .await?;
                                 info!("TrySession sent, waiting for response.");
 
@@ -445,6 +464,7 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                         });
                     }
                     SimulateUserState::Connected => {
+                        info!("Connected to broker via Rings.");
                         let info = conn_info.clone().unwrap();
                         let rings_provider = ctx.rings_provider.clone();
                         let mut round = 1u64;
@@ -459,26 +479,20 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                     device_addr: to_address.clone(),
                                     session_id: info.session_id.clone(),
                                 },
-                                format!("Hello from user, round {}", round)
-                                    .as_bytes()
-                                    .to_vec(),
+                                to_vec(&round)?,
                             );
+                            let payload = BackendMessage::Extension(to_vec(&payload)?.into());
+                            let payload = payload.into_send_backend_message_request(format!(
+                                "0x{}",
+                                hex::encode(info.broker_address.clone())
+                            ))?;
                             let _ = rings_provider
-                                .request(
-                                    Method::SendCustomMessage,
-                                    SendCustomMessageRequest {
-                                        destination_did: format!(
-                                            "0x{}",
-                                            hex::encode(info.broker_address.clone())
-                                        ),
-                                        data: to_vec(&payload)?.to_base58(),
-                                    },
-                                )
+                                .request(Method::SendBackendMessage, payload)
                                 .await;
                             info!("Round {} sent.", round);
 
                             round += 1;
-                            sleep(Duration::from_secs(1)).await;
+                            sleep(Duration::from_secs(3)).await;
                         }
                     }
                 }
@@ -701,11 +715,29 @@ async fn device_topic_p2p_handler(
             info!("Broker authorized user: 0x{}", hex::encode(&user_addr));
         }
         PtpLocalMessageFromBroker::ShouldReceiveMessage(user_addr, payload) => {
+            let n = from_slice::<u64>(&payload)?;
             info!(
-                "ShouldReceiveMessage received from 0x{}, payload: 0x{}",
+                "ShouldReceiveMessage received from 0x{}, payload: 0x{}(parsed u64: {})",
                 hex::encode(&user_addr),
-                hex::encode(&payload)
+                hex::encode(&payload),
+                n
             );
+            let n = n.pow(2);
+            let (msg, _) = signer
+                .create_message(
+                    MessageChannel::TunnelNegotiate,
+                    to_vec(&PtpLocalMessageFromDevice::ShouldSendMessage(
+                        user_addr,
+                        to_vec(&n)?,
+                    ))?
+                    .to_vec(),
+                    broker_addr.lock().await.clone(),
+                    None,
+                )
+                .await?;
+            mqtt_broker
+                .publish_bytes(topic, QoS::AtMostOnce, false, to_vec(&msg)?.into())
+                .await?;
         }
     }
     Ok(())

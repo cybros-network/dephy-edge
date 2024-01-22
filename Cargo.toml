@@ -45,9 +45,10 @@ cbc = "0.1.2"
 base58 = "0.2.0"
 url = "2.5.0"
 
-rings-core = { git = "https://github.com/RingsNetwork/rings", rev = "a99d13610ad67756327552c316232ccea2fe67c6", version = "0.5.2" }
-rings-node = { git = "https://github.com/RingsNetwork/rings", rev = "a99d13610ad67756327552c316232ccea2fe67c6", version = "0.5.2" }
-rings-rpc = { git = "https://github.com/RingsNetwork/rings", rev = "a99d13610ad67756327552c316232ccea2fe67c6", version = "0.5.2" }
+rings-core = { git = "https://github.com/RingsNetwork/rings", rev = "21b3f64e5cc650650f520c0d1660112280897582", version = "0.5.5" }
+rings-node = { git = "https://github.com/RingsNetwork/rings", rev = "21b3f64e5cc650650f520c0d1660112280897582", version = "0.5.5" }
+rings-rpc = { git = "https://github.com/RingsNetwork/rings", rev = "21b3f64e5cc650650f520c0d1660112280897582", version = "0.5.5" }
+bincode = "1.3.3"
 
 [build-dependencies]
 

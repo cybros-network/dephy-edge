@@ -9,14 +9,11 @@ use tokio_util::sync::CancellationToken;
 pub static DEPHY_NOSTR_KIND: Kind = Kind::Regular(1111);
 
 pub fn default_kind() -> Kind {
-    DEPHY_NOSTR_KIND.clone()
+    DEPHY_NOSTR_KIND
 }
 
 pub fn default_filter(kind: Option<Kind>) -> Filter {
-    let kind = match kind {
-        Some(kind) => kind,
-        None => default_kind(),
-    };
+    let kind = kind.unwrap_or_else(|| default_kind());
     Filter::new()
         .kind(kind)
         .custom_tag(Alphabet::C, vec!["dephy"])
@@ -41,7 +38,7 @@ pub async fn start_nostr_context(
                 if cancel_token.is_cancelled() {
                     return Ok(true);
                 }
-                let _ = tokio::spawn(wrap_handle_notification(ctx, n));
+                tokio::spawn(wrap_handle_notification(ctx, n));
                 Ok(false)
             }
         })
