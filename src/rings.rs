@@ -197,12 +197,17 @@ impl AppRingsHandler for AppContext {
                     }
                 };
             }
-            PtpUserMessageFromUser::Message(info, payload) => {
+            PtpUserMessageFromUser::Message {
+                session: info,
+                data: payload,
+            } => {
                 let mqtt_tx = self.mqtt_tx.clone();
                 let signer = self.signing_key.clone();
 
-                let payload =
-                    PtpLocalMessageFromBroker::ShouldReceiveMessage(info.user_addr, payload);
+                let payload = PtpLocalMessageFromBroker::ShouldReceiveMessage {
+                    user_addr: info.user_addr,
+                    data: payload,
+                };
                 let (payload, _) = signer
                     .create_message(
                         MessageChannel::TunnelNegotiate,

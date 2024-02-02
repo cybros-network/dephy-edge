@@ -141,10 +141,10 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
             let (msg, _) = signer
                 .create_message(
                     MessageChannel::TunnelNegotiate,
-                    to_vec(&PtpLocalMessageFromBroker::AreYouThere(
-                        user_addr.clone(),
-                        session_id.clone(),
-                    ))?,
+                    to_vec(&PtpLocalMessageFromBroker::AreYouThere {
+                        user_addr: user_addr.clone(),
+                        session_id: session_id.clone(),
+                    })?,
                     Some(device_addr.clone()),
                     None,
                 )
@@ -171,7 +171,10 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
         PtpLocalMessageFromDevice::MeVoila(_) => {
             // todo: maintain session
         }
-        PtpLocalMessageFromDevice::ShouldSendMessage(user_addr, payload) => {
+        PtpLocalMessageFromDevice::ShouldSendMessage {
+            user_addr: user_addr,
+            data: payload,
+        } => {
             if let Some(session_id) = device_addr_to_session_id_map.lock().await.get(&device_addr) {
                 if let Some(result) = user_addr_and_session_id_authorized_map
                     .lock()
@@ -188,14 +191,14 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
                     }
                     ctx.send_rings_message(
                         user_addr.to_did_string(),
-                        &PtpUserMessageFromBroker::Message(
-                            TrySessionInfo {
+                        &PtpUserMessageFromBroker::Message {
+                            session: TrySessionInfo {
                                 user_addr,
                                 device_addr,
                                 session_id: session_id.clone(),
                             },
-                            payload,
-                        ),
+                            data: payload,
+                        },
                     )
                     .await?;
                 } else {

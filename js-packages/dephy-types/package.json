@@ -1,0 +1,8 @@
+{
+  "name": "dephy-types",
+  "version": "1.0.0",
+  "license": "MIT",
+  "peerDependencies": {
+    "borsher": "^1.2.1"
+  }
+}

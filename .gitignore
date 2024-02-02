@@ -94,3 +94,9 @@ fabric.properties
 .env
 # local env files
 .env*.local
+
+js-packages/dephy-types/src/generated/*.ts
+
+yarn-error.log
+node_modules
+.DS_Store
