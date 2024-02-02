@@ -586,7 +586,7 @@ async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<
                             let ib_move = ib_move.clone();
                             tokio::spawn(async move {
                                 if let Err(e) = device_topic_p2p_handler(ctx, p, ib_move).await {
-                                    warn!("device_topic_p2p_handler: {:?}", e)
+                                    debug!("device_topic_p2p_handler: {:?}", e)
                                 }
                             });
                         }
@@ -722,12 +722,12 @@ async fn device_topic_p2p_handler(
                 hex::encode(&payload),
                 n
             );
-            let n = n.pow(2);
+            let n = n ^ 0xfefefefefefefefe << 8;
             let (msg, _) = signer
                 .create_message(
                     MessageChannel::TunnelNegotiate,
                     to_vec(&PtpLocalMessageFromDevice::ShouldSendMessage(
-                        user_addr,
+                        user_addr.clone(),
                         to_vec(&n)?,
                     ))?
                     .to_vec(),
@@ -738,6 +738,7 @@ async fn device_topic_p2p_handler(
             mqtt_broker
                 .publish_bytes(topic, QoS::AtMostOnce, false, to_vec(&msg)?.into())
                 .await?;
+            info!("Response {} sent to 0x{}", n, hex::encode(&user_addr));
         }
     }
     Ok(())

@@ -33,7 +33,7 @@ pub async fn mqtt_broker(
                     .replace(ETH_ADDRESS_PREFIX, "");
                 tokio::spawn(async move {
                     if let Err(e) = handle_local_payload(ctx, target, n.payload).await {
-                        warn!("handle_local_payload: {:?}", e)
+                        debug!("handle_local_payload: {:?}", e)
                     }
                 });
             }

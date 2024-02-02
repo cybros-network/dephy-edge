@@ -27,6 +27,7 @@ pub struct PtpRemoteNegotiateInfo {
     pub public_key: Vec<u8>,
     pub session_id: Vec<u8>,
     pub broker_address: Vec<u8>,
+    // todo: direct or not?
 }
 
 #[derive(Clone, PartialEq)]
