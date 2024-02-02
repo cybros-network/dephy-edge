@@ -1,5 +1,4 @@
 use crate::crypto::*;
-use base58::ToBase58;
 use clap::{Parser, Subcommand};
 use dephy_edge::rings::AppRingsProvider;
 use dephy_edge::{app_main::wait_for_join_set, nostr::default_filter, *};
@@ -222,7 +221,10 @@ impl SwarmCallback for UserBackendBehaviour {
                     PtpUserMessageFromBroker::SessionConnLost(_) => {
                         // todo
                     }
-                    PtpUserMessageFromBroker::Message(info, payload) => {
+                    PtpUserMessageFromBroker::Message {
+                        session: info,
+                        data: payload,
+                    } => {
                         // todo: check info
                         let n = from_slice::<u64>(&payload)?;
                         info!(
@@ -473,14 +475,14 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                 break;
                             }
 
-                            let payload = PtpUserMessageFromUser::Message(
-                                TrySessionInfo {
+                            let payload = PtpUserMessageFromUser::Message {
+                                session: TrySessionInfo {
                                     user_addr: signer.eth_addr().to_vec(),
                                     device_addr: to_address.clone(),
                                     session_id: info.session_id.clone(),
                                 },
-                                to_vec(&round)?,
-                            );
+                                data: to_vec(&round)?,
+                            };
                             let payload = BackendMessage::Extension(to_vec(&payload)?.into());
                             let payload = payload.into_send_backend_message_request(format!(
                                 "0x{}",
@@ -690,7 +692,10 @@ async fn device_topic_p2p_handler(
                 .publish_bytes(topic, QoS::AtMostOnce, false, to_vec(&msg)?.into())
                 .await?;
         }
-        PtpLocalMessageFromBroker::AreYouThere(user_addr, session_id_new) => {
+        PtpLocalMessageFromBroker::AreYouThere {
+            user_addr: user_addr,
+            session_id: session_id_new,
+        } => {
             if session_id.lock().await.is_none() {
                 bail!("Keepalive received before Hello.")
             }
@@ -714,7 +719,10 @@ async fn device_topic_p2p_handler(
                 .await?;
             info!("Broker authorized user: 0x{}", hex::encode(&user_addr));
         }
-        PtpLocalMessageFromBroker::ShouldReceiveMessage(user_addr, payload) => {
+        PtpLocalMessageFromBroker::ShouldReceiveMessage {
+            user_addr: user_addr,
+            data: payload,
+        } => {
             let n = from_slice::<u64>(&payload)?;
             info!(
                 "ShouldReceiveMessage received from 0x{}, payload: 0x{}(parsed u64: {})",
@@ -726,10 +734,10 @@ async fn device_topic_p2p_handler(
             let (msg, _) = signer
                 .create_message(
                     MessageChannel::TunnelNegotiate,
-                    to_vec(&PtpLocalMessageFromDevice::ShouldSendMessage(
-                        user_addr.clone(),
-                        to_vec(&n)?,
-                    ))?
+                    to_vec(&PtpLocalMessageFromDevice::ShouldSendMessage {
+                        user_addr: user_addr.clone(),
+                        data: to_vec(&n)?,
+                    })?
                     .to_vec(),
                     broker_addr.lock().await.clone(),
                     None,

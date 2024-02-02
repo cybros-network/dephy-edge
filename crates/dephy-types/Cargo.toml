@@ -8,6 +8,8 @@ default = ["std"]
 std = ["derive", "borsh/std", "rc"]
 derive = ["borsh/derive"]
 rc = ["borsh/rc"]
+generate_js = []
 
 [dependencies]
 borsh = { version = "1.3.0", default-features = false }
+borsher-macro = { path = "../borsher-macro" }

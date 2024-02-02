@@ -94,3 +94,10 @@ fabric.properties
 .env
 # local env files
 .env*.local
+
+js-packages/dephy-borsh-types/src/generated/*.ts
+js-packages/dephy-borsh-types/src/generated/*.js
+
+yarn-error.log
+node_modules
+.DS_Store
