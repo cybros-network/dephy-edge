@@ -1,5 +1,4 @@
 #![feature(proc_macro_span)]
-#![feature(absolute_path)]
 
 extern crate proc_macro;
 

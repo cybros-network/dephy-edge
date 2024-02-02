@@ -1,6 +1,6 @@
 pub use inner::*;
 
-#[cfg_attr(feature = "generate_js",  borsher_macro::borsher("../../../js-packages/dephy-types/src/generated/ptp_message.js"))]
+#[cfg_attr(feature = "generate_js",  borsher_macro::borsher("../../../js-packages/dephy-borsh-types/src/generated/ptp_message.js"))]
 mod inner {
     #[cfg(feature = "derive")]
     use borsh::{BorshDeserialize, BorshSerialize};
