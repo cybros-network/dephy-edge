@@ -4629,7 +4629,7 @@ dependencies = [
 [[package]]
 name = "rings-core"
 version = "0.5.6"
-source = "git+https://github.com/RingsNetwork/rings?rev=2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9#2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9"
+source = "git+https://github.com/RingsNetwork/rings?rev=2bfa6949d8aa0dd2f678bbfebaca1563035f48ea#2bfa6949d8aa0dd2f678bbfebaca1563035f48ea"
 dependencies = [
  "arrayref",
  "async-channel",
@@ -4681,7 +4681,7 @@ dependencies = [
 [[package]]
 name = "rings-derive"
 version = "0.5.6"
-source = "git+https://github.com/RingsNetwork/rings?rev=2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9#2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9"
+source = "git+https://github.com/RingsNetwork/rings?rev=2bfa6949d8aa0dd2f678bbfebaca1563035f48ea#2bfa6949d8aa0dd2f678bbfebaca1563035f48ea"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4691,7 +4691,7 @@ dependencies = [
 [[package]]
 name = "rings-node"
 version = "0.5.6"
-source = "git+https://github.com/RingsNetwork/rings?rev=2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9#2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9"
+source = "git+https://github.com/RingsNetwork/rings?rev=2bfa6949d8aa0dd2f678bbfebaca1563035f48ea#2bfa6949d8aa0dd2f678bbfebaca1563035f48ea"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4742,7 +4742,7 @@ dependencies = [
 [[package]]
 name = "rings-rpc"
 version = "0.5.6"
-source = "git+https://github.com/RingsNetwork/rings?rev=2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9#2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9"
+source = "git+https://github.com/RingsNetwork/rings?rev=2bfa6949d8aa0dd2f678bbfebaca1563035f48ea#2bfa6949d8aa0dd2f678bbfebaca1563035f48ea"
 dependencies = [
  "async-trait",
  "base64 0.13.1",
@@ -4762,7 +4762,7 @@ dependencies = [
 [[package]]
 name = "rings-snark"
 version = "0.5.6"
-source = "git+https://github.com/RingsNetwork/rings?rev=2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9#2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9"
+source = "git+https://github.com/RingsNetwork/rings?rev=2bfa6949d8aa0dd2f678bbfebaca1563035f48ea#2bfa6949d8aa0dd2f678bbfebaca1563035f48ea"
 dependencies = [
  "bellman_ce",
  "bellpepper-core",
@@ -4787,7 +4787,7 @@ dependencies = [
 [[package]]
 name = "rings-transport"
 version = "0.5.6"
-source = "git+https://github.com/RingsNetwork/rings?rev=2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9#2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9"
+source = "git+https://github.com/RingsNetwork/rings?rev=2bfa6949d8aa0dd2f678bbfebaca1563035f48ea#2bfa6949d8aa0dd2f678bbfebaca1563035f48ea"
 dependencies = [
  "async-trait",
  "bincode",
