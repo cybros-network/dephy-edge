@@ -49,6 +49,8 @@ rings-node = { git = "https://github.com/RingsNetwork/rings", rev = "2ee2f3b8aac
 rings-rpc = { git = "https://github.com/RingsNetwork/rings", rev = "2ee2f3b8aac80fd93b91bd99efb216473cb7c9a9" }
 bincode = "1.3.3"
 
+curve25519-dalek = "=4.1.1"
+
 [build-dependencies]
 
 [[bin]]
