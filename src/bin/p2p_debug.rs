@@ -561,7 +561,6 @@ async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<
         let cancel_token = ctx.cancel_token.clone();
         let topic_receiver = ctx.topic_receiver.as_str();
         let topic_p2p = ctx.topic_p2p.as_str();
-        let mqtt_client = ctx.mqtt_client.clone();
         loop {
             if cancel_token.is_cancelled() {
                 break;
@@ -569,7 +568,7 @@ async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<
             let notification = mqtt_loop.poll().await.unwrap();
             match notification {
                 Event::Incoming(notification) => match notification {
-                    Incoming::ConnAck(c) => {
+                    Incoming::ConnAck(_) => {
                         info!("Connected to MQTT broker.");
                     }
                     Incoming::Publish(p) => {
@@ -693,7 +692,7 @@ async fn device_topic_p2p_handler(
                 .await?;
         }
         PtpLocalMessageFromBroker::AreYouThere {
-            user_addr: user_addr,
+            user_addr,
             session_id: session_id_new,
         } => {
             if session_id.lock().await.is_none() {
@@ -720,7 +719,7 @@ async fn device_topic_p2p_handler(
             info!("Broker authorized user: 0x{}", hex::encode(&user_addr));
         }
         PtpLocalMessageFromBroker::ShouldReceiveMessage {
-            user_addr: user_addr,
+            user_addr,
             data: payload,
         } => {
             let n = from_slice::<u64>(&payload)?;

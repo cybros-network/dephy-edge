@@ -173,7 +173,7 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
             // todo: maintain session
         }
         PtpLocalMessageFromDevice::ShouldSendMessage {
-            user_addr: user_addr,
+            user_addr,
             data: payload,
         } => {
             if let Some(session_id) = device_addr_to_session_id_map.lock().await.get(&device_addr) {
