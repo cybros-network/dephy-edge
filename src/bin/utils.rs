@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
             let r_key_addr = r_key_addr.as_ref();
             assert_eq!(
                 from_address,
-                r_key_addr.as_ref(),
+                r_key_addr,
                 "Signature check failed! expected_signer=0x{} actual_signer=0x{}",
                 from_address_hex,
                 hex::encode(r_key_addr)

@@ -111,7 +111,7 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
     let r_key_addr = get_eth_address_bytes(&r_key);
     let r_key_addr = r_key_addr.as_ref();
     ensure!(
-        from_address == r_key_addr.as_ref(),
+        from_address == r_key_addr,
         "Signature check failed! expected_signer=0x{} actual_signer=0x{}",
         from_address_hex,
         hex::encode(r_key_addr)
