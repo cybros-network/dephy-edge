@@ -42,9 +42,9 @@ pub struct CliOpt {
 
     #[clap(short = 'k', long, env = "DEPHY_PRIV_KEY")]
     pub priv_key: String,
-    #[clap(short = 'n', long, env, default_values_t = ["wss://relay-poc.dephy.io".to_string()])]
+    #[clap(short = 'n', long, env, default_values_t = ["wss://poc-relay.dephy.cloud/".to_string()])]
     pub nostr_relay_list: Vec<String>,
-    #[clap(short = 'N', long, env, default_values_t = ["https://rings-poc.dephy.io".to_string()])]
+    #[clap(short = 'N', long, env, default_values_t = ["https://poc-rings.dephy.cloud/".to_string()])]
     pub p2p_bootstrap_node_list: Vec<String>,
 }
 
