@@ -61,7 +61,7 @@ async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
     // Don't redistribute self
     if let Some(last_edge_addr) = &msg.last_edge_addr {
         debug!(
-            "{} {}",
+            "handle_payload: {} {}",
             hex::encode(last_edge_addr.as_slice()),
             hex::encode(&ctx.eth_addr_bytes)
         );
@@ -70,6 +70,7 @@ async fn handle_payload(ctx: Arc<AppContext>, payload: Bytes) -> Result<()> {
         }
     }
 
+    debug!("handle_payload: sending");
     let nostr_tx = ctx.nostr_tx.clone();
     nostr_tx.send(msg)?;
 

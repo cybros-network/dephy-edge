@@ -66,10 +66,12 @@ async fn wrap_handle_signed_message(
 }
 
 async fn handle_signed_message(ctx: Arc<AppContext>, body: Bytes) -> Result<Box<dyn warp::Reply>> {
-    let (msg, _) = check_message(body.as_ref())?;
+    let (msg, raw) = check_message(body.as_ref())?;
 
     if *&msg.last_edge_addr.is_some() {
-        bail!("Message must be from a device!");
+        if msg.last_edge_addr.as_ref().unwrap().as_slice() != raw.from_address.as_slice() {
+            bail!("Message must be from a device!");
+        }
     }
 
     let content = body.as_ref().to_vec();
