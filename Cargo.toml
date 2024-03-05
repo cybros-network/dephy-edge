@@ -44,9 +44,11 @@ cbc = "0.1.2"
 base58 = "0.2.0"
 url = "2.5.0"
 config = { git = "https://github.com/mehcode/config-rs", rev = "98cf8cbbb37836be2d444bda29ccb6b5223096bf" }
-rings-core = { git = "https://github.com/RingsNetwork/rings", rev = "2bfa6949d8aa0dd2f678bbfebaca1563035f48ea" }
-rings-node = { git = "https://github.com/RingsNetwork/rings", rev = "2bfa6949d8aa0dd2f678bbfebaca1563035f48ea" }
-rings-rpc = { git = "https://github.com/RingsNetwork/rings", rev = "2bfa6949d8aa0dd2f678bbfebaca1563035f48ea" }
+rings-core = { git = "https://github.com/krhougs/rings", rev = "dff13bff98962fd97bdbeafd71effa08c5997fd3" }
+rings-node = { git = "https://github.com/krhougs/rings", rev = "dff13bff98962fd97bdbeafd71effa08c5997fd3", default-features = false, features = [
+    "node",
+] }
+rings-rpc = { git = "https://github.com/krhougs/rings", rev = "dff13bff98962fd97bdbeafd71effa08c5997fd3" }
 bincode = "1.3.3"
 
 curve25519-dalek = "=4.1.1"
