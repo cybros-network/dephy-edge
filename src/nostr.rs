@@ -144,6 +144,7 @@ pub async fn send_signed_message_to_network(
         nonce: msg.nonce,
         signature: msg.signature,
         last_edge_addr: Some(ctx.eth_addr_bytes.to_vec()),
+        session_id: msg.session_id,
     };
     let content = bs58::encode(to_vec(&new_msg)?.as_slice()).into_string();
     let tags = vec![

@@ -208,8 +208,11 @@ impl AppRingsHandler for AppContext {
                     user_addr: info.user_addr,
                     data: payload,
                 };
+                let msg_session = self.messaging_session.fetch().await;
                 let (payload, _) = signer
                     .create_message(
+                        msg_session.0,
+                        Some(msg_session.1),
                         MessageChannel::TunnelNegotiate,
                         to_vec(&payload)?,
                         Some(info.device_addr.clone()),

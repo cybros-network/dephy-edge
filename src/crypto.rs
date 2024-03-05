@@ -10,6 +10,7 @@ use k256::{
     PublicKey,
 };
 use rand::{rngs::OsRng, Fill};
+use rings_core::session;
 use sha3::{Digest, Keccak256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -137,6 +138,8 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
 pub trait DephySigningKey {
     async fn create_message(
         &self,
+        session_id: Vec<u8>,
+        nonce: Option<u64>,
         channel: MessageChannel,
         payload: Vec<u8>,
         to_address: Option<Vec<u8>>,
@@ -144,6 +147,8 @@ pub trait DephySigningKey {
     ) -> Result<(SignedMessage, RawMessage)>;
     async fn create_nostr_event(
         &self,
+        session_id: Vec<u8>,
+        nonce: Option<u64>,
         channel: MessageChannel,
         payload: Vec<u8>,
         to_address: Option<Vec<u8>>,
@@ -159,6 +164,8 @@ pub trait DephySigningKey {
 impl DephySigningKey for SigningKey {
     async fn create_message(
         &self,
+        session_id: Vec<u8>,
+        nonce: Option<u64>,
         channel: MessageChannel,
         payload: Vec<u8>,
         to_address: Option<Vec<u8>>,
@@ -218,9 +225,10 @@ impl DephySigningKey for SigningKey {
             SignedMessage {
                 raw,
                 hash: raw_hash.to_vec(),
-                nonce: timestamp,
+                nonce: nonce.unwrap_or(timestamp),
                 signature: sign_bytes,
                 last_edge_addr: Some(from_address),
+                session_id,
             },
             raw_msg,
         ))
@@ -228,6 +236,8 @@ impl DephySigningKey for SigningKey {
 
     async fn create_nostr_event(
         &self,
+        session_id: Vec<u8>,
+        nonce: Option<u64>,
         channel: MessageChannel,
         payload: Vec<u8>,
         to_address: Option<Vec<u8>>,
@@ -235,7 +245,7 @@ impl DephySigningKey for SigningKey {
         keys: &Keys,
     ) -> Result<Event> {
         let (msg, raw) = self
-            .create_message(channel, payload, to_address, encr_target)
+            .create_message(session_id, nonce, channel, payload, to_address, encr_target)
             .await?;
         let content = bs58::encode(to_vec(&msg)?.as_slice()).into_string();
         let tags = vec![

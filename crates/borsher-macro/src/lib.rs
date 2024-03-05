@@ -33,7 +33,14 @@ fn write_file(filename: String, schema_ts: String) {
     let call_site = Span::call_site();
     let mut path = PathBuf::new();
     path.push("./");
-    path.push(call_site.source_file().path().parent().unwrap().to_path_buf());
+    path.push(
+        call_site
+            .source_file()
+            .path()
+            .parent()
+            .unwrap()
+            .to_path_buf(),
+    );
     path.push(filename.as_str().trim());
     println!("Writing to file: {}", path.to_str().unwrap());
     // Create the path ignoring existing
@@ -42,10 +49,15 @@ fn write_file(filename: String, schema_ts: String) {
         .create(path.parent().unwrap())
         .expect("Creates macro output dir");
     let mut target_file = File::create(path.clone()).expect("Creates macro output file");
-    target_file.write_all(format!(
-        "// Generated file, don't edit!\nimport {{ BorshSchema }} from 'borsher';\n\n{}\n",
-        schema_ts
-    ).as_bytes()).expect("Writes macro output file");
+    target_file
+        .write_all(
+            format!(
+                "// Generated file, don't edit!\nimport {{ BorshSchema }} from 'borsher';\n\n{}\n",
+                schema_ts
+            )
+            .as_bytes(),
+        )
+        .expect("Writes macro output file");
 }
 
 fn map_type(ty: &Type) -> String {
@@ -56,10 +68,16 @@ fn map_type(ty: &Type) -> String {
             let ty = &arr.elem;
             let len = match len {
                 Expr::Lit(l) => match &l.lit {
-                    Lit::Int(i ) => i.base10_parse::<usize>().unwrap(),
-                    _ => panic!("unsupported array length expr: {}", quote! { #len }.to_string()),
+                    Lit::Int(i) => i.base10_parse::<usize>().unwrap(),
+                    _ => panic!(
+                        "unsupported array length expr: {}",
+                        quote! { #len }.to_string()
+                    ),
                 },
-                _ => panic!("unsupported array length expr: {}", quote! { #len }.to_string()),
+                _ => panic!(
+                    "unsupported array length expr: {}",
+                    quote! { #len }.to_string()
+                ),
             };
             format!("BorshSchema.Array({}, {})", map_type(ty), len)
         }

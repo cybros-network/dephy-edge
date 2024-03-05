@@ -107,8 +107,11 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
             let mut session_id = [0u8; 16];
             session_id.try_fill(&mut OsRng)?;
             let session_id = session_id.to_vec();
+            let msg_session = ctx.messaging_session.fetch().await;
             let (msg, _) = signer
                 .create_message(
+                    msg_session.0,
+                    Some(msg_session.1),
                     MessageChannel::TunnelNegotiate,
                     to_vec(&PtpLocalMessageFromBroker::Hello(session_id.clone()))?,
                     Some(device_addr.clone()),
@@ -139,8 +142,11 @@ async fn handle_local_payload(ctx: Arc<AppContext>, target: String, payload: Byt
                 .get(&device_addr)
                 .ok_or_else(|| anyhow!("No session_id for device_addr {}", &target))?
                 .clone();
+            let msg_session = ctx.messaging_session.fetch().await;
             let (msg, _) = signer
                 .create_message(
+                    msg_session.0,
+                    Some(msg_session.1),
                     MessageChannel::TunnelNegotiate,
                     to_vec(&PtpLocalMessageFromBroker::AreYouThere {
                         user_addr: user_addr.clone(),

@@ -11,6 +11,9 @@ pub use nostr_sdk::{
 };
 pub use primitive_types::{U128, U256};
 pub use prost::Message;
+use rand::RngCore;
+use rand_core::OsRng;
+use rings_core::session;
 pub use rumqttd::local::{LinkRx, LinkTx};
 pub use rumqttd::Broker;
 use std::collections::HashMap;
@@ -48,6 +51,36 @@ pub struct CliOpt {
     pub p2p_bootstrap_node_list: Vec<String>,
 }
 
+pub struct DephySessionStoreInner {
+    pub session_id: Vec<u8>,
+    pub next_nonce: u64,
+}
+
+#[derive(Clone)]
+pub struct DephySessionStore {
+    pub inner: Arc<Mutex<DephySessionStoreInner>>,
+}
+
+impl DephySessionStore {
+    pub fn new() -> Self {
+        let mut session_id = vec![0u8; 8];
+        OsRng.fill_bytes(session_id.as_mut_slice());
+        let inner = DephySessionStoreInner {
+            session_id,
+            next_nonce: 0,
+        };
+        let inner = Arc::new(Mutex::new(inner));
+        DephySessionStore { inner }
+    }
+    pub async fn fetch(&self) -> (Vec<u8>, u64) {
+        let store = self.inner.clone();
+        let mut store = store.lock().await;
+        let ret = (store.session_id.clone(), store.next_nonce);
+        store.next_nonce += 1;
+        ret
+    }
+}
+
 pub struct AppContext {
     pub opt: CliOpt,
     pub signing_key: SigningKey,
@@ -61,4 +94,5 @@ pub struct AppContext {
     pub device_addr_to_session_id_map: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
     pub session_id_to_device_map: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
     pub user_addr_and_session_id_authorized_map: Arc<Mutex<HashMap<(Vec<u8>, Vec<u8>), bool>>>,
+    pub messaging_session: DephySessionStore,
 }
