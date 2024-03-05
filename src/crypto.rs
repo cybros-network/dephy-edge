@@ -10,7 +10,6 @@ use k256::{
     PublicKey,
 };
 use rand::{rngs::OsRng, Fill};
-use rings_core::session;
 use sha3::{Digest, Keccak256};
 use std::time::{SystemTime, UNIX_EPOCH};
 

@@ -8,6 +8,7 @@ use preludes::*;
 use rand::Fill;
 use rand_core::OsRng;
 use rings_core::message::MessagePayload;
+use rings_core::session;
 use rings_core::swarm::callback::SwarmCallback;
 use rings_core::swarm::callback::SwarmEvent;
 use rings_node::backend::types::BackendMessage;
@@ -109,6 +110,7 @@ struct SimulateUserContext {
     pub target_address: Vec<u8>,
     pub state: Arc<Mutex<SimulateUserState>>,
     pub tx: UserChannelTx,
+    pub messaging_session: DephySessionStore,
 }
 
 enum UserChannelPayload {
@@ -156,6 +158,7 @@ async fn simulate_user_main(
         target_address,
         state,
         tx: tx.clone(),
+        messaging_session: DephySessionStore::new(),
     });
 
     let rings_handler = UserBackendBehaviour {
@@ -386,6 +389,8 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                         let signer = signer.clone();
                         let to_address = to_address.clone();
                         let state = ctx.state.clone();
+                        let ctx_move = ctx.clone();
+
                         tokio::spawn(async move {
                             let mut tick = 0u16;
                             loop {
@@ -396,8 +401,11 @@ async fn user_loop(ctx: Arc<SimulateUserContext>, mut rx: UserChannelRx) -> Resu
                                     nonce: nonce.clone(),
                                     public_key: public_key.clone(),
                                 };
+                                let msg_session = ctx_move.messaging_session.fetch().await;
                                 let event = signer
                                     .create_nostr_event(
+                                        msg_session.0,
+                                        Some(msg_session.1),
                                         MessageChannel::TunnelNegotiate,
                                         to_vec(&payload)?,
                                         Some(to_address.clone()),
@@ -516,6 +524,7 @@ struct SimulateDeviceContext {
     pub user_authorized_map: Arc<Mutex<HashMap<Vec<u8>, bool>>>,
     pub session_id: Arc<Mutex<Option<Vec<u8>>>>,
     pub broker_addr: Arc<Mutex<Option<Vec<u8>>>>,
+    pub messaging_session: DephySessionStore,
 }
 
 async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<()> {
@@ -540,6 +549,7 @@ async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<
         user_authorized_map: Arc::new(Mutex::new(HashMap::new())),
         session_id: Arc::new(Mutex::new(None)),
         broker_addr: Arc::new(Mutex::new(None)),
+        messaging_session: DephySessionStore::new(),
     });
 
     mqtt_client
@@ -609,9 +619,12 @@ async fn simulate_device_main(signer: SigningKey, mqtt_address: &str) -> Result<
         let signer = ctx.signing_key.clone();
         let mqtt_client = ctx.mqtt_client.clone();
         let topic_p2p = ctx.topic_p2p.as_str();
+        let msg_session = ctx.messaging_session.fetch().await;
 
         let (msg, _) = signer
             .create_message(
+                msg_session.0,
+                Some(msg_session.1),
                 MessageChannel::TunnelNegotiate,
                 to_vec(&PtpLocalMessageFromDevice::Hello)?.to_vec(),
                 None,
@@ -679,8 +692,11 @@ async fn device_topic_p2p_handler(
             if broker_addr.lock().await.is_none() {
                 bail!("Keepalive received before Hello.")
             }
+            let msg_session = ctx.messaging_session.fetch().await;
             let (msg, _) = signer
                 .create_message(
+                    msg_session.0,
+                    Some(msg_session.1),
                     MessageChannel::TunnelNegotiate,
                     to_vec(&PtpLocalMessageFromDevice::Keepalive)?.to_vec(),
                     broker_addr.lock().await.clone(),
@@ -705,8 +721,11 @@ async fn device_topic_p2p_handler(
                 .lock()
                 .await
                 .insert(user_addr.clone(), true);
+            let msg_session = ctx.messaging_session.fetch().await;
             let (msg, _) = signer
                 .create_message(
+                    msg_session.0,
+                    Some(msg_session.1),
                     MessageChannel::TunnelNegotiate,
                     to_vec(&PtpLocalMessageFromDevice::MeVoila(session_id_new))?.to_vec(),
                     broker_addr.lock().await.clone(),
@@ -730,8 +749,11 @@ async fn device_topic_p2p_handler(
                 n
             );
             let n = n ^ 0xfefefefefefefefe << 8;
+            let msg_session = ctx.messaging_session.fetch().await;
             let (msg, _) = signer
                 .create_message(
+                    msg_session.0,
+                    Some(msg_session.1),
                     MessageChannel::TunnelNegotiate,
                     to_vec(&PtpLocalMessageFromDevice::ShouldSendMessage {
                         user_addr: user_addr.clone(),
@@ -790,6 +812,8 @@ async fn device_topic_receiver_handler(ctx: Arc<SimulateDeviceContext>, p: Publi
             let user_addr_move = user_addr.clone();
             let user_authorized_map_move = user_authorized_map.clone();
             let topic_p2p_move = ctx.topic_p2p.clone();
+
+            let ctx_move = ctx.clone();
             tokio::spawn(async move {
                 let barrier = barrier_move.clone();
                 let mqtt_client = mqtt_client_move;
@@ -797,8 +821,11 @@ async fn device_topic_receiver_handler(ctx: Arc<SimulateDeviceContext>, p: Publi
                 if let Err(e) = async move {
                     // todo: need to drop if timed out
                     info!("trying to acquire session from broker...");
+                    let msg_session = ctx_move.messaging_session.fetch().await;
                     let (msg, _) = signer_move
                         .create_message(
+                            msg_session.0,
+                            Some(msg_session.1),
                             MessageChannel::TunnelNegotiate,
                             to_vec(&PtpLocalMessageFromDevice::ShouldAuthorizeUser(
                                 user_addr_move.clone(),
@@ -852,8 +879,11 @@ async fn device_topic_receiver_handler(ctx: Arc<SimulateDeviceContext>, p: Publi
                     broker_address: broker_addr.clone(),
                 },
             ))?;
+            let msg_session = ctx.messaging_session.fetch().await;
             let (payload, _) = signer
                 .create_message(
+                    msg_session.0,
+                    Some(msg_session.1),
                     MessageChannel::TunnelNegotiate,
                     payload,
                     Some(broker_addr),

@@ -5,6 +5,7 @@ use preludes::*;
 use clap::{Parser, Subcommand, ValueEnum};
 use dephy_edge::crypto::get_eth_address_bytes;
 use k256::ecdsa::{RecoveryId, Signature};
+use rand::RngCore;
 use rand_core::OsRng;
 use sha3::{Digest, Keccak256};
 
@@ -93,12 +94,16 @@ async fn main() -> Result<()> {
             let mut sign_bytes = signature.to_vec();
             sign_bytes.append(&mut vec![recid.to_byte()]);
 
+            let mut session_id = vec![0u8; 16];
+            OsRng.fill_bytes(session_id.as_mut_slice());
+
             let signed = SignedMessage {
                 raw,
                 hash: raw_hash.to_vec(),
                 nonce: timestamp,
                 signature: sign_bytes,
                 last_edge_addr: None,
+                session_id,
             };
             let signed = to_vec(&signed)?;
             println!("{}", hex::encode(signed));
@@ -119,6 +124,7 @@ async fn main() -> Result<()> {
                 nonce,
                 signature,
                 last_edge_addr,
+                session_id,
             } = msg;
             let raw = raw.as_slice();
             let raw_hex = hex::encode(raw);
