@@ -61,13 +61,15 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
         hash,
         nonce,
         signature,
+        session_id,
         ..
     } = msg.clone();
     let raw = raw.as_slice();
     let hash = hash.as_slice();
     let hash_hex = hex::encode(hash);
     hasher.update(raw);
-    hasher.update(nonce.to_string().as_bytes());
+    hasher.update(session_id.as_slice());
+    hasher.update(dephy_types::borsh::to_vec(&nonce)?.as_slice());
     let curr_hash = hasher.finalize_reset();
     ensure!(
         hash == curr_hash.as_slice(),
@@ -83,12 +85,6 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
         from_address,
         ..
     } = raw_msg.clone();
-    ensure!(
-        nonce == timestamp,
-        "Message timestamp check failed: outer={} inner={}",
-        nonce,
-        timestamp
-    );
 
     let from_address = from_address.as_slice();
     let from_address_hex = hex::encode(from_address);
@@ -211,9 +207,13 @@ impl DephySigningKey for SigningKey {
             enc_iv: iv,
         };
         let raw = to_vec(&raw_msg)?;
+
+        let nonce = nonce.unwrap_or(timestamp);
+
         let mut hasher = Keccak256::new();
         hasher.update(&raw);
-        hasher.update(timestamp.to_string().as_bytes());
+        hasher.update(session_id.as_slice());
+        hasher.update(dephy_types::borsh::to_vec(&nonce)?.as_slice());
         let raw_hash = hasher.finalize_reset();
         hasher.update(&raw_hash);
         let (signature, recid) = self.sign_digest_recoverable(hasher)?;
@@ -224,7 +224,7 @@ impl DephySigningKey for SigningKey {
             SignedMessage {
                 raw,
                 hash: raw_hash.to_vec(),
-                nonce: nonce.unwrap_or(timestamp),
+                nonce,
                 signature: sign_bytes,
                 last_edge_addr: Some(from_address),
                 session_id,
