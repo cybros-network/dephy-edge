@@ -211,10 +211,13 @@ async fn nostr_sender_loop(
             return Ok(());
         }
         let nostr_client = ctx.nostr_client.clone();
+        let ctx_move = ctx.clone();
 
-        if let Err(e) = send_signed_message_to_network(ctx.clone(), nostr_client, m, &keys).await {
-            debug!("send_signed_message_to_network: {:?}", e)
-        }
+        tokio::spawn(async move {
+            if let Err(e) = send_signed_message_to_network(ctx_move, nostr_client, m, &keys).await {
+                error!("send_signed_message_to_network: {:?}", e)
+            }
+        });
     }
     Ok(())
 }

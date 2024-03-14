@@ -80,11 +80,7 @@ pub fn check_message(data: &[u8]) -> Result<(SignedMessage, RawMessage)> {
     debug!("Raw message hash: 0x{}", hash_hex);
 
     let raw_msg = from_slice::<RawMessage>(raw)?;
-    let RawMessage {
-        timestamp,
-        from_address,
-        ..
-    } = raw_msg.clone();
+    let RawMessage { from_address, .. } = raw_msg.clone();
 
     let from_address = from_address.as_slice();
     let from_address_hex = hex::encode(from_address);

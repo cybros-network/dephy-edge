@@ -13,7 +13,6 @@ pub use primitive_types::{U128, U256};
 pub use prost::Message;
 use rand::RngCore;
 use rand_core::OsRng;
-use rings_core::session;
 pub use rumqttd::local::{LinkRx, LinkTx};
 pub use rumqttd::Broker;
 use std::collections::HashMap;
