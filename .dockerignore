@@ -102,3 +102,4 @@ compose.yml
 compose.*.yml
 
 read-demo
+docker-git-release.sh
