@@ -54,19 +54,20 @@ const incomingQueue = new PQueue({ concurrency: 1 });
 
 function handleIncomingNostrMessage(kv, filter, relay) {
   return new Promise(async (resolve) => {
-    const sub = relay.subscribe(filter, {
+    relay.subscribe(filter, {
       onevent(e) {
         incomingQueue.add(async () => {
           await processNostrMessage(e)
           await kv.set(NAME_PROCESSED_TS, e['created_at']);
         });
       },
-      oneose() {
-        if (q.size === 0) {
-          sub.close("eose");
-          q.off('empty');
-          resolve();
-        }
+      // oneose() {
+      // sub.close("eose");
+      // resolve();
+      // },
+      onclose() {
+        console.log("The relay has closed the connection, exiting...")
+        resolve();
       }
     });
   });

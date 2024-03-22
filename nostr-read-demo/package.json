@@ -10,7 +10,7 @@
     "typescript": "^5.4.3"
   },
   "scripts": {
-    "build": "parcel build --no-optimize --no-scope-hoist",
+    "build": "rm -rf .parcel-cache && parcel build --no-optimize --no-scope-hoist",
     "run": "node --enable-source-maps out/main.js",
     "dev": "rm -rf out && yarn build && yarn run run"
   },
