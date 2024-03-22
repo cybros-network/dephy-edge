@@ -1,5 +1,7 @@
-import { Relay } from 'nostr-tools/lib/cjs'
+import { Relay, useWebSocketImplementation } from 'nostr-tools'
 import { kvsEnvStorage } from "@kvs/env/lib/node";
+import { handleNostrMessageTrunk, handleIncomingNostrMessage } from './message';
+import WebSocket from "ws";
 import {
   NAME_PROCESSED_TS,
   NAME_STORAGE,
@@ -7,6 +9,8 @@ import {
   NOSTR_RELAY_URL,
   CONST_TIME_ONE_HOUR
 } from './constants';
+
+useWebSocketImplementation(WebSocket);
 
 async function initStorage() {
   const kv = await kvsEnvStorage({
@@ -41,7 +45,13 @@ async function main() {
   await subscribeMessages(kv, relay);
 }
 
-main().catch(console.error);
+main().then(() => {
+  console.log("Main done.");
+  process.exit(0);
+}).catch(e => {
+  console.error(e);
+  process.exit(255);
+});
 
 async function processHistoricMessages(kv, relay) {
   const last_processed = await kv.get(NAME_PROCESSED_TS);
@@ -73,7 +83,15 @@ async function processHistoricMessages(kv, relay) {
 
   for (const t of trunks) {
     console.log(`(${1 + t.i}/${trunks.length}) Processing messages from ${t.from} to ${t.to}`);
-    // todo
+
+    await handleNostrMessageTrunk([{
+      kinds: [1111],
+      ["#c"]: ["dephy"],
+      since: t.from,
+      until: t.to,
+    }], relay);
+
+
     await kv.set(NAME_PROCESSED_TS, t.to);
   }
 
@@ -83,5 +101,9 @@ async function processHistoricMessages(kv, relay) {
 async function subscribeMessages(kv, relay) {
   const from = 1 + await kv.get(NAME_PROCESSED_TS);
   console.log('Subscribing to new messages from', from);
-  // todo
+  await handleIncomingNostrMessage(kv, [{
+    kinds: [1111],
+    ["#c"]: ["dephy"],
+    since: from
+  }], relay)
 }

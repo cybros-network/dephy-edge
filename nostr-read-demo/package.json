@@ -12,14 +12,18 @@
   "scripts": {
     "build": "parcel build --no-optimize --no-scope-hoist",
     "run": "node --enable-source-maps out/main.js",
-    "dev": "yarn build && yarn run run"
+    "dev": "rm -rf out && yarn build && yarn run run"
   },
   "dependencies": {
     "@kvs/env": "^2.2.0",
     "@kvs/node-localstorage": "^2.2.0",
+    "@nostr-dev-kit/ndk": "^2.5.1",
     "borsher": "^1.2.1",
+    "bs58": "^5.0.0",
     "dephy-borsh-types": "^0.0.2",
-    "nostr-tools": "^2.3.2"
+    "nostr-tools": "^2.3.2",
+    "p-queue": "^8.0.1",
+    "ws": "^8.16.0"
   },
   "engines": {
     "node": ">= 20"
@@ -31,5 +35,8 @@
       "scopeHoist": true,
       "optimize": false
     }
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.8"
   }
 }
