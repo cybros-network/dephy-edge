@@ -8,6 +8,8 @@ import {
   NOSTR_START_TIME,
   NOSTR_RELAY_URL,
   CONST_TIME_ONE_HOUR,
+  USE_OLD_SUBSCRIBE_BEHAVIOR,
+  SCAN_DURATION,
 } from "./constants";
 
 useWebSocketImplementation(WebSocket);
@@ -42,7 +44,11 @@ async function main() {
     shouldContinue = await processHistoricMessages(kv, relay);
   }
 
-  await subscribeMessages(kv, relay);
+  if (USE_OLD_SUBSCRIBE_BEHAVIOR) {
+    await subscribeMessages__legacy(kv, relay);
+  } else {
+    await subscribeMessages(kv, relay);
+  }
 }
 
 main()
@@ -107,7 +113,7 @@ async function processHistoricMessages(kv, relay) {
   return false;
 }
 
-async function subscribeMessages(kv, relay) {
+async function subscribeMessages__legacy(kv, relay) {
   const from = 1 + (await kv.get(NAME_PROCESSED_TS));
   console.log("Subscribing to new messages from", from);
   await handleIncomingNostrMessage(
@@ -121,4 +127,41 @@ async function subscribeMessages(kv, relay) {
     ],
     relay,
   );
+}
+
+async function subscribeMessages(kv, relay) {
+  let from;
+  while (true) {
+    from = 1 + (await kv.get(NAME_PROCESSED_TS));
+    const now = Math.floor(Date.now() / 1000);
+
+    if (now - from < SCAN_DURATION) {
+      await sleep(1000);
+      continue;
+    }
+
+    console.log(
+      `Processing messages from ${from} to ${now}`,
+    );
+
+    await handleNostrMessageTrunk(
+      [
+        {
+          kinds: [1111],
+          ["#c"]: ["dephy"],
+          since: from,
+          until: now,
+        },
+      ],
+      relay,
+      kv,
+    );
+
+    await kv.set(NAME_PROCESSED_TS, now);
+  }
+}
+
+
+function sleep(d) {
+  return new Promise((resolve) => setTimeout(resolve, d));
 }
