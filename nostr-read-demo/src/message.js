@@ -1,51 +1,76 @@
 import bs58 from "bs58";
 import { borshDeserialize } from "borsher";
-import { SignedMessage, RawMessage } from 'dephy-borsh-types/src/generated/message'
-import PQueue from 'p-queue/dist';
+import {
+  SignedMessage,
+  RawMessage,
+} from "dephy-borsh-types/src/generated/message";
+import PQueue from "p-queue/dist";
 import { processCustomMessage } from "./custom";
-import { NAME_PROCESSED_TS } from "./constants";
+import { NAME_PROCESSED_TS, SHOULD_IGNORE_PROCESS_ERROR } from "./constants";
 
-async function processNostrMessage(event) {
-  try {
-    const content = bs58.decode(event.content);
-    const m = borshDeserialize(SignedMessage, content);
-    const r = borshDeserialize(RawMessage, new Uint8Array(m.raw));
-    // todo(?): may need to check singnature here
+let lastTs = 0;
+let lastEvent = null;
 
-    const msg = {
-      id: event.id,
+function processNostrMessage(kv, event) {
+  if (event.created_at >= lastTs) {
+    lastTs = event.created_at;
+    lastEvent = event;
+  } else {
+    console.error("Out of order", {
+      currTs: event.created_at,
+      lastTs,
       event,
-      m,
-      r,
-    }
-
-    await processCustomMessage(msg);
-  } catch (e) {
-    console.error(`Error while processing event:`, event)
+      lastEvent,
+    });
+    throw new Error("Out of order");
   }
+
+  const promise = _processNostrMessage(kv, event);
+  return SHOULD_IGNORE_PROCESS_ERROR
+    ? promise.catch((e) => {
+        console.error("Error while processNostrMessage:", e, event);
+      })
+    : promise;
 }
 
-function handleNostrMessageTrunk(filter, relay) {
-  const q = new PQueue({ concurrency: 255 });
+async function _processNostrMessage(kv, event) {
+  const content = bs58.decode(event.content);
+  const m = borshDeserialize(SignedMessage, content);
+  const r = borshDeserialize(RawMessage, new Uint8Array(m.raw));
+  // todo(?): may need to check singnature here
+
+  const msg = {
+    id: event.id,
+    event,
+    m,
+    r,
+  };
+
+  await processCustomMessage(msg);
+  await kv.set(NAME_PROCESSED_TS, event.created_at);
+}
+
+function handleNostrMessageTrunk(filter, relay, kv) {
+  const q = new PQueue({ concurrency: 1 });
 
   return new Promise(async (resolve) => {
-    q.on('empty', () => {
-      console.log('Batch done.')
-      q.off('empty');
+    q.on("empty", () => {
+      console.log("Batch done.");
+      q.off("empty");
       resolve();
     });
 
     const sub = relay.subscribe(filter, {
       onevent(e) {
-        q.add(() => processNostrMessage(e));
+        q.add(() => processNostrMessage(kv, e));
       },
       oneose() {
         if (q.size === 0) {
           sub.close("eose");
-          q.off('empty');
+          q.off("empty");
           resolve();
         }
-      }
+      },
     });
   });
 }
@@ -57,8 +82,7 @@ function handleIncomingNostrMessage(kv, filter, relay) {
     relay.subscribe(filter, {
       onevent(e) {
         incomingQueue.add(async () => {
-          await processNostrMessage(e)
-          await kv.set(NAME_PROCESSED_TS, e['created_at']);
+          await processNostrMessage(kv, e);
         });
       },
       // oneose() {
@@ -66,9 +90,9 @@ function handleIncomingNostrMessage(kv, filter, relay) {
       // resolve();
       // },
       onclose() {
-        console.log("The relay has closed the connection, exiting...")
+        console.log("The relay has closed the connection, exiting...");
         resolve();
-      }
+      },
     });
   });
 }
@@ -76,5 +100,5 @@ function handleIncomingNostrMessage(kv, filter, relay) {
 export {
   processNostrMessage,
   handleNostrMessageTrunk,
-  handleIncomingNostrMessage
-}
+  handleIncomingNostrMessage,
+};

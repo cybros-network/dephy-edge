@@ -1,4 +1,4 @@
-import { BorshSchema, borshDeserialize, } from "borsher";
+import { BorshSchema, borshDeserialize } from "borsher";
 
 const EventData = BorshSchema.Struct({
   original: BorshSchema.f64,
@@ -8,7 +8,7 @@ const EventData = BorshSchema.Struct({
 
 async function processCustomMessage({ id, event, m, r }) {
   const payload = borshDeserialize(EventData, new Uint8Array(r.payload));
-  console.log(id, event['created_at'], payload);
+  // console.log(id, event['created_at'], payload);
 }
 
-export { processCustomMessage }
+export { processCustomMessage };
