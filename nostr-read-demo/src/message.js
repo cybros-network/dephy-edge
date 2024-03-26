@@ -6,7 +6,11 @@ import {
 } from "dephy-borsh-types/src/generated/message";
 import PQueue from "p-queue/dist";
 import { processCustomMessage } from "./custom";
-import { NAME_PROCESSED_TS, SHOULD_IGNORE_PROCESS_ERROR } from "./constants";
+import {
+  NAME_PROCESSED_TS,
+  SHOULD_ENFORCE_MESSAGE_ORDER,
+  SHOULD_IGNORE_PROCESS_ERROR,
+} from "./constants";
 
 let lastTs = 0;
 let lastEvent = null;
@@ -22,7 +26,9 @@ function processNostrMessage(kv, event) {
       event,
       lastEvent,
     });
-    throw new Error("Out of order");
+    if (SHOULD_ENFORCE_MESSAGE_ORDER) {
+      throw new Error("Out of order");
+    }
   }
 
   const promise = _processNostrMessage(kv, event);

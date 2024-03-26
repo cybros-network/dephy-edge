@@ -10,3 +10,6 @@ export const NOSTR_START_TIME =
 
 export const SHOULD_IGNORE_PROCESS_ERROR =
   process.env.SHOULD_IGNORE_PROCESS_ERROR === "true" || false;
+
+export const SHOULD_ENFORCE_MESSAGE_ORDER =
+  process.env.SHOULD_ENFORCE_MESSAGE_ORDER === "true" || false;
