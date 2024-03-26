@@ -8,7 +8,11 @@ const EventData = BorshSchema.Struct({
 
 async function processCustomMessage({ id, event, m, r }) {
   const payload = borshDeserialize(EventData, new Uint8Array(r.payload));
-  // console.log(id, event['created_at'], payload);
+  console.log(id, event["created_at"], payload);
 }
 
-export { processCustomMessage };
+async function processTrunkCustomMessage(events) {
+  console.log("processTrunkCustomMessage:", events.length);
+}
+
+export { processCustomMessage, processTrunkCustomMessage };

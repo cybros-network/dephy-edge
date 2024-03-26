@@ -5,7 +5,7 @@ import {
   RawMessage,
 } from "dephy-borsh-types/src/generated/message";
 import PQueue from "p-queue/dist";
-import { processCustomMessage } from "./custom";
+import { processCustomMessage, processTrunkCustomMessage } from "./custom";
 import {
   NAME_PROCESSED_TS,
   SHOULD_ENFORCE_MESSAGE_ORDER,
@@ -40,42 +40,69 @@ function processNostrMessage(kv, event) {
 }
 
 async function _processNostrMessage(kv, event) {
+  const msg = unpackNostrMessage(event);
+  await processCustomMessage(msg);
+  await kv.set(NAME_PROCESSED_TS, event.created_at);
+}
+
+function unpackNostrMessage(event) {
   const content = bs58.decode(event.content);
   const m = borshDeserialize(SignedMessage, content);
   const r = borshDeserialize(RawMessage, new Uint8Array(m.raw));
   // todo(?): may need to check singnature here
 
-  const msg = {
+  return {
     id: event.id,
     event,
     m,
     r,
   };
-
-  await processCustomMessage(msg);
-  await kv.set(NAME_PROCESSED_TS, event.created_at);
 }
 
 function handleNostrMessageTrunk(filter, relay, kv) {
-  const q = new PQueue({ concurrency: 1 });
+  const events = [];
 
-  return new Promise(async (resolve) => {
-    q.on("empty", () => {
-      console.log("Batch done.");
-      q.off("empty");
-      resolve();
-    });
+  return new Promise(async (resolve, reject) => {
+    const finish = () => {
+      if (events.length === 0) {
+        resolve();
+        return;
+      }
+      processTrunkCustomMessage(events)
+        .then(async () => {
+          await kv.set(NAME_PROCESSED_TS, filter.until);
+          resolve();
+        })
+        .catch((e) => {
+          console.error("Error while processTrunkCustomMessage:", e);
+          if (!SHOULD_IGNORE_PROCESS_ERROR) {
+            resolve();
+          } else {
+            reject(e);
+          }
+        });
+    };
 
     const sub = relay.subscribe(filter, {
       onevent(e) {
-        q.add(() => processNostrMessage(kv, e));
+        let msg;
+        try {
+          msg = unpackNostrMessage(e);
+        } catch (e) {
+          console.error("Error while unpackNostrMessage:", e);
+          if (!SHOULD_IGNORE_PROCESS_ERROR) {
+            sub.close("error");
+            reject(e);
+            return;
+          }
+        }
+        if (msg) {
+          events.push(msg);
+        }
       },
       oneose() {
-        if (q.size === 0) {
-          sub.close("eose");
-          q.off("empty");
-          resolve();
-        }
+        sub.close("eose");
+        finish();
       },
     });
   });
@@ -105,6 +132,7 @@ function handleIncomingNostrMessage(kv, filter, relay) {
 
 export {
   processNostrMessage,
+  unpackNostrMessage,
   handleNostrMessageTrunk,
   handleIncomingNostrMessage,
 };
